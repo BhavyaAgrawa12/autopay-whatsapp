@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { HeaderConfig } from '../../types/campaign';
 import { WATemplateComponent } from '../../types/whatsapp';
+import { API_BASE_URL } from '../../api/config';
 
 interface WhatsAppPhonePreviewProps {
   headerConfig: HeaderConfig;
@@ -70,7 +71,7 @@ export const WhatsAppPhonePreview: React.FC<WhatsAppPhonePreviewProps> = ({
                 <img
                   src={
                     headerConfig.assetId
-                      ? `/api/company/assets/${headerConfig.assetId}/file`
+                      ? `${API_BASE_URL}/api/company/assets/${headerConfig.assetId}/file`
                       : headerConfig.assetUrl!
                   }
                   alt="Header"

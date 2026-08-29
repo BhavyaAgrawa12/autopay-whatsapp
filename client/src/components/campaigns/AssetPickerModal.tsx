@@ -12,6 +12,7 @@ import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import { CompanyAssetRecord } from '../../types/company';
+import { API_BASE_URL } from '../../api/config';
 import { fetchAssetsApi, uploadAssetApi } from '../../api/assets';
 
 interface AssetPickerModalProps {
@@ -196,7 +197,7 @@ export const AssetPickerModal: React.FC<AssetPickerModalProps> = ({
                   <div className="h-28 bg-slate-900 rounded-lg overflow-hidden flex items-center justify-center mb-2 border border-slate-800">
                     {asset.category === 'IMAGE' || asset.category === 'GIF' ? (
                       <img
-                        src={asset.relativePath || `/api/company/assets/${asset.id}/file`}
+                        src={`${API_BASE_URL}/api/company/assets/${asset.id}/file`}
                         alt={asset.originalFilename}
                         className="w-full h-full object-cover"
                       />
