@@ -1,5 +1,5 @@
 import { CompanyAssetRecord } from '../types/company';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, getAuthHeaders } from './config';
 
 export async function fetchAssetsApi(query?: {
   search?: string;
@@ -12,7 +12,7 @@ export async function fetchAssetsApi(query?: {
   if (query?.sort) params.append('sort', query.sort);
 
   const res = await fetch(`${API_BASE_URL}/api/company/assets?${params.toString()}`, {
-    headers: { Accept: 'application/json' },
+    headers: getAuthHeaders({ Accept: 'application/json' }),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to fetch assets');
@@ -31,6 +31,7 @@ export async function uploadAssetApi(file: File, description?: string): Promise<
 
   const res = await fetch(`${API_BASE_URL}/api/company/assets`, {
     method: 'POST',
+    headers: getAuthHeaders(),
     credentials: 'include',
     body: formData,
   });
@@ -47,10 +48,10 @@ export async function uploadAssetApi(file: File, description?: string): Promise<
 export async function renameAssetApi(id: string, newFilename: string): Promise<CompanyAssetRecord> {
   const res = await fetch(`${API_BASE_URL}/api/company/assets/${id}`, {
     method: 'PUT',
-    headers: {
+    headers: getAuthHeaders({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-    },
+    }),
     credentials: 'include',
     body: JSON.stringify({ filename: newFilename }),
   });
@@ -62,6 +63,7 @@ export async function renameAssetApi(id: string, newFilename: string): Promise<C
 export async function deleteAssetApi(id: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/company/assets/${id}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to delete asset');

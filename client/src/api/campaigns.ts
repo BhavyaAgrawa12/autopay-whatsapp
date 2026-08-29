@@ -1,5 +1,5 @@
 import { Campaign } from '../types/campaign';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, getAuthHeaders } from './config';
 
 export interface CampaignProgressData {
   total: number;
@@ -44,7 +44,7 @@ export interface PaginatedRecipientsResponse {
 
 export async function fetchCampaignsApi(): Promise<Campaign[]> {
   const res = await fetch(`${API_BASE_URL}/api/campaigns`, {
-    headers: { Accept: 'application/json' },
+    headers: getAuthHeaders({ Accept: 'application/json' }),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to fetch campaigns');
@@ -55,10 +55,10 @@ export async function fetchCampaignsApi(): Promise<Campaign[]> {
 export async function saveCampaignApi(campaign: Partial<Campaign>): Promise<Campaign> {
   const res = await fetch(`${API_BASE_URL}/api/campaigns`, {
     method: 'POST',
-    headers: {
+    headers: getAuthHeaders({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-    },
+    }),
     credentials: 'include',
     body: JSON.stringify(campaign),
   });
@@ -70,6 +70,7 @@ export async function saveCampaignApi(campaign: Partial<Campaign>): Promise<Camp
 export async function deleteCampaignApi(campaignId: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to delete campaign');
@@ -88,10 +89,10 @@ export async function startCampaignApi(
 ): Promise<{ campaignId: string; status: string; totalJobs: number }> {
   const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/send`, {
     method: 'POST',
-    headers: {
+    headers: getAuthHeaders({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-    },
+    }),
     credentials: 'include',
     body: JSON.stringify(payload),
   });
@@ -106,6 +107,7 @@ export async function startCampaignApi(
 export async function pauseCampaignApi(campaignId: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/pause`, {
     method: 'POST',
+    headers: getAuthHeaders(),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to pause campaign');
@@ -114,6 +116,7 @@ export async function pauseCampaignApi(campaignId: string): Promise<void> {
 export async function resumeCampaignApi(campaignId: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/resume`, {
     method: 'POST',
+    headers: getAuthHeaders(),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to resume campaign');
@@ -122,6 +125,7 @@ export async function resumeCampaignApi(campaignId: string): Promise<void> {
 export async function cancelCampaignApi(campaignId: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/cancel`, {
     method: 'POST',
+    headers: getAuthHeaders(),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to cancel campaign');
@@ -129,7 +133,7 @@ export async function cancelCampaignApi(campaignId: string): Promise<void> {
 
 export async function fetchCampaignProgressApi(campaignId: string): Promise<CampaignProgressData> {
   const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/progress`, {
-    headers: { Accept: 'application/json' },
+    headers: getAuthHeaders({ Accept: 'application/json' }),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to fetch campaign progress');
@@ -148,7 +152,7 @@ export async function fetchCampaignRecipientsApi(
   if (params?.search) query.set('search', params.search);
 
   const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/recipients?${query.toString()}`, {
-    headers: { Accept: 'application/json' },
+    headers: getAuthHeaders({ Accept: 'application/json' }),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to fetch campaign recipients');
@@ -188,7 +192,7 @@ export interface CampaignReportData {
 
 export async function fetchCampaignReportApi(campaignId: string): Promise<CampaignReportData> {
   const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/report`, {
-    headers: { Accept: 'application/json' },
+    headers: getAuthHeaders({ Accept: 'application/json' }),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to fetch campaign report');
@@ -201,6 +205,7 @@ export async function downloadCampaignExcelApi(
   exportType: 'failed' | 'successful' | 'all'
 ): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/export/${exportType}`, {
+    headers: getAuthHeaders(),
     credentials: 'include',
   });
   if (!res.ok) throw new Error(`Failed to export ${exportType} Excel report`);
