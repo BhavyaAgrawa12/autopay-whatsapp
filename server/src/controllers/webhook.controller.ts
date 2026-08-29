@@ -88,11 +88,6 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
   // 3. Process status events asynchronously
   try {
     const body = req.body;
-    logger.info('[WhatsApp Webhook] POST received', {
-      hasBody: !!body,
-      objectType: body?.object,
-      hasEntries: Array.isArray(body?.entry),
-    });
 
     if (!body || body.object !== 'whatsapp_business_account' || !Array.isArray(body.entry)) {
       return; // Ignore non-WhatsApp or malformed webhook payloads safely
@@ -107,7 +102,8 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
         const statuses = value.statuses || [];
 
         for (const statusItem of statuses) {
-          const messageId = statusItem.id;
+          const rawMessageId = statusItem.id || '';
+          const messageId = rawMessageId.trim();
           const statusStr = (statusItem.status || '').toUpperCase();
           const timestampSec = statusItem.timestamp ? parseInt(statusItem.timestamp, 10) : Math.floor(Date.now() / 1000);
           const eventDate = new Date(timestampSec * 1000);
@@ -119,18 +115,24 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
           const targetStatus = statusStr as MessageEventStatus;
 
           // A. Lookup recipient by exact whatsappMessageId
-          const recipient = await CampaignRecipient.findOne({ whatsappMessageId: messageId });
+          let recipient = await CampaignRecipient.findOne({ whatsappMessageId: messageId });
+          if (!recipient && messageId) {
+            recipient = await CampaignRecipient.findOne({
+              whatsappMessageId: { $regex: new RegExp(`^${messageId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            });
+          }
 
-          // Safe development diagnostics (Directive 8)
-          logger.info('[WhatsApp Webhook] Status event parsed', {
-            status: targetStatus,
-            messageIdSuffix: messageId ? messageId.slice(-8) : '',
+          // Safe development diagnostics (User directive)
+          logger.info('[WhatsApp Webhook] Event received', {
+            eventType: change.field,
+            status: statusItem.status,
+            wamidSuffix: messageId ? messageId.slice(-8) : '',
             recipientMatched: !!recipient,
           });
 
           if (!recipient) {
             logger.warn('[WhatsApp Webhook] Unknown message ID received', {
-              messageIdSuffix: messageId ? messageId.slice(-8) : '',
+              wamidSuffix: messageId ? messageId.slice(-8) : '',
             });
             continue;
           }
@@ -158,7 +160,7 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
           } catch (err: any) {
             if (err.code === 11000) {
               logger.info('[WhatsApp Webhook] Idempotent duplicate event recorded', {
-                messageIdSuffix: messageId.slice(-8),
+                wamidSuffix: messageId.slice(-8),
                 status: targetStatus,
               });
             } else {
@@ -193,8 +195,8 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
           }
 
           await recipient.save();
-          logger.info('[WhatsApp Webhook] Status update completed', {
-            messageIdSuffix: messageId.slice(-8),
+          logger.info('[WhatsApp Webhook] CampaignRecipient status updated', {
+            wamidSuffix: messageId.slice(-8),
             resultingStatus: recipient.status,
           });
         }
