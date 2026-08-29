@@ -14,6 +14,7 @@ import { CompanyPage } from '../pages/CompanyPage';
 import { CompanyAssetsPage } from '../pages/CompanyAssetsPage';
 import { ReportsPage } from '../pages/ReportsPage';
 import { SettingsPage } from '../pages/SettingsPage';
+import { PrivacyPolicyPage } from '../pages/PrivacyPolicyPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 
@@ -38,7 +39,10 @@ const PublicOnlyRoute: React.FC<{ children: React.ReactNode }> = ({ children }) 
 export const AppRoutes: React.FC = () => {
   return (
     <Routes>
-      {/* Public Login Route */}
+      {/* Public Routes */}
+      <Route path="/privacy" element={<PrivacyPolicyPage />} />
+      <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+
       <Route
         path="/login"
         element={
