@@ -1,5 +1,5 @@
 import { AuthResponse, User } from '../types';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, getAuthHeaders } from './config';
 
 export async function loginApi(email: string, password: string): Promise<AuthResponse> {
   const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
@@ -28,9 +28,7 @@ export async function loginApi(email: string, password: string): Promise<AuthRes
 export async function logoutApi(): Promise<void> {
   await fetch(`${API_BASE_URL}/api/auth/logout`, {
     method: 'POST',
-    headers: {
-      'Accept': 'application/json',
-    },
+    headers: getAuthHeaders({ 'Accept': 'application/json' }),
     credentials: 'include',
   });
 }
@@ -38,9 +36,7 @@ export async function logoutApi(): Promise<void> {
 export async function fetchMeApi(): Promise<{ user: User; accessToken?: string }> {
   const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
     method: 'GET',
-    headers: {
-      'Accept': 'application/json',
-    },
+    headers: getAuthHeaders({ 'Accept': 'application/json' }),
     credentials: 'include',
   });
 

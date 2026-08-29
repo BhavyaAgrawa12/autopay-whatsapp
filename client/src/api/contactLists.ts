@@ -1,4 +1,4 @@
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, getAuthHeaders } from './config';
 
 export interface ContactListSummary {
   id: string;
@@ -34,7 +34,7 @@ export interface ContactListDetailsResponse {
 export async function fetchContactListsApi(): Promise<ContactListSummary[]> {
   const res = await fetch(`${API_BASE_URL}/api/contact-lists`, {
     method: 'GET',
-    headers: { Accept: 'application/json' },
+    headers: getAuthHeaders({ Accept: 'application/json' }),
     credentials: 'include',
   });
   const data = await res.json();
@@ -47,10 +47,10 @@ export async function fetchContactListsApi(): Promise<ContactListSummary[]> {
 export async function createContactListApi(name: string, description?: string): Promise<ContactListSummary> {
   const res = await fetch(`${API_BASE_URL}/api/contact-lists`, {
     method: 'POST',
-    headers: {
+    headers: getAuthHeaders({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-    },
+    }),
     credentials: 'include',
     body: JSON.stringify({ name, description }),
   });
@@ -72,7 +72,7 @@ export async function fetchContactListDetailsApi(
 
   const res = await fetch(`${API_BASE_URL}/api/contact-lists/${id}?${query.toString()}`, {
     method: 'GET',
-    headers: { Accept: 'application/json' },
+    headers: getAuthHeaders({ Accept: 'application/json' }),
     credentials: 'include',
   });
   const data = await res.json();
@@ -85,10 +85,10 @@ export async function fetchContactListDetailsApi(
 export async function updateContactListApi(id: string, name?: string, description?: string): Promise<ContactListSummary> {
   const res = await fetch(`${API_BASE_URL}/api/contact-lists/${id}`, {
     method: 'PATCH',
-    headers: {
+    headers: getAuthHeaders({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-    },
+    }),
     credentials: 'include',
     body: JSON.stringify({ name, description }),
   });
@@ -102,7 +102,7 @@ export async function updateContactListApi(id: string, name?: string, descriptio
 export async function deleteContactListApi(id: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/contact-lists/${id}`, {
     method: 'DELETE',
-    headers: { Accept: 'application/json' },
+    headers: getAuthHeaders({ Accept: 'application/json' }),
     credentials: 'include',
   });
   const data = await res.json();
@@ -114,10 +114,10 @@ export async function deleteContactListApi(id: string): Promise<void> {
 export async function addContactsToListApi(id: string, contactIds: string[]): Promise<{ addedCount: number; totalMembers: number }> {
   const res = await fetch(`${API_BASE_URL}/api/contact-lists/${id}/contacts`, {
     method: 'POST',
-    headers: {
+    headers: getAuthHeaders({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-    },
+    }),
     credentials: 'include',
     body: JSON.stringify({ contactIds }),
   });
@@ -131,7 +131,7 @@ export async function addContactsToListApi(id: string, contactIds: string[]): Pr
 export async function removeContactFromListApi(id: string, contactId: string): Promise<{ totalMembers: number }> {
   const res = await fetch(`${API_BASE_URL}/api/contact-lists/${id}/contacts/${contactId}`, {
     method: 'DELETE',
-    headers: { Accept: 'application/json' },
+    headers: getAuthHeaders({ Accept: 'application/json' }),
     credentials: 'include',
   });
   const data = await res.json();

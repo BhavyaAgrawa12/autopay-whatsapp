@@ -54,6 +54,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const res = await loginApi(email, password);
     setUser(res.data.user);
     setAccessToken(res.data.accessToken);
+    if (res.data.accessToken) {
+      localStorage.setItem('accessToken', res.data.accessToken);
+    }
   };
 
   const logout = async (): Promise<void> => {
@@ -62,6 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setUser(null);
       setAccessToken(null);
+      localStorage.removeItem('accessToken');
     }
   };
 

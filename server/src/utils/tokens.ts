@@ -39,7 +39,7 @@ export class TokenService {
 
   public static setAuthCookies(res: Response, accessToken: string, refreshToken: string): void {
     const isProduction = env.NODE_ENV === 'production';
-    const sameSiteSetting = isProduction ? 'strict' : 'lax';
+    const sameSiteSetting = isProduction ? 'none' : 'lax';
 
     // Set Access Token HTTP-only Cookie (15 min)
     res.cookie('accessToken', accessToken, {
@@ -62,7 +62,7 @@ export class TokenService {
 
   public static clearAuthCookies(res: Response): void {
     const isProduction = env.NODE_ENV === 'production';
-    const sameSiteSetting = isProduction ? 'strict' : 'lax';
+    const sameSiteSetting = isProduction ? 'none' : 'lax';
 
     res.clearCookie('accessToken', {
       httpOnly: true,
