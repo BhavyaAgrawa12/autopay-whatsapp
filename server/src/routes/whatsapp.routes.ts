@@ -8,6 +8,7 @@ import {
   getTemplates,
   syncTemplates,
   sendTestMessage,
+  debugWabaSubscription,
 } from '../controllers/whatsapp.controller.js';
 
 const router = Router();
@@ -24,6 +25,7 @@ const sendTestMessageSchema = z.object({
 
 router.get('/status', getWhatsAppStatus);
 router.post('/test-connection', testWhatsAppConnection);
+router.get('/debug-waba', debugWabaSubscription);
 router.get('/templates', getTemplates);
 router.post('/templates/sync', syncTemplates);
 router.post('/send-test', validateRequest({ body: sendTestMessageSchema }), sendTestMessage);

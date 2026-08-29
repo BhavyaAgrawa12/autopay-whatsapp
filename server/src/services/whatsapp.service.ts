@@ -187,7 +187,7 @@ export class WhatsAppService {
 
       const data = await response.json();
       if (response.ok && (data.success || data.data)) {
-        logger.info('WABA subscribed to Meta App webhooks successfully', { wabaId: env.WHATSAPP_BUSINESS_ACCOUNT_ID });
+        logger.info('WABA subscribed to Meta App webhooks successfully', { wabaIdSuffix: env.WHATSAPP_BUSINESS_ACCOUNT_ID.slice(-4) });
         return { success: true, message: 'WABA webhooks subscribed successfully' };
       } else {
         const errMsg = data.error?.message || 'Failed to subscribe WABA to webhooks';
@@ -197,6 +197,78 @@ export class WhatsAppService {
     } catch (err: any) {
       return { success: false, message: WhatsAppService.sanitizeError(err) };
     }
+  }
+
+  // Diagnostic WABA Subscription Query
+  public static async debugWabaSubscription(): Promise<any> {
+    const token = WhatsAppService.getToken();
+    if (!token || !env.WHATSAPP_BUSINESS_ACCOUNT_ID || !env.WHATSAPP_PHONE_NUMBER_ID) {
+      throw new ValidationError('WABA ID, Phone Number ID, or Access Token missing');
+    }
+
+    const version = env.WHATSAPP_API_VERSION;
+
+    // 1. POST /{WABA_ID}/subscribed_apps
+    const postUrl = `https://graph.facebook.com/${version}/${env.WHATSAPP_BUSINESS_ACCOUNT_ID}/subscribed_apps`;
+    const postRes = await fetch(postUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    const postStatus = postRes.status;
+    const postData = await postRes.json();
+
+    // 2. GET /{WABA_ID}/subscribed_apps
+    const getUrl = `https://graph.facebook.com/${version}/${env.WHATSAPP_BUSINESS_ACCOUNT_ID}/subscribed_apps`;
+    const getRes = await fetch(getUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    const getStatus = getRes.status;
+    const getData = await getRes.json();
+
+    const appsList = Array.isArray(getData.data) ? getData.data : [];
+    const isAppSubscribed = appsList.length > 0;
+
+    // 3. GET /{WABA_ID}/phone_numbers to verify relationship
+    const phoneUrl = `https://graph.facebook.com/${version}/${env.WHATSAPP_BUSINESS_ACCOUNT_ID}/phone_numbers`;
+    const phoneRes = await fetch(phoneUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    const phoneData = await phoneRes.json();
+
+    let phoneRelationshipValid = false;
+    let displayPhone = '';
+    let verifiedName = '';
+
+    if (Array.isArray(phoneData.data)) {
+      const match = phoneData.data.find((p: any) => p.id === env.WHATSAPP_PHONE_NUMBER_ID);
+      if (match) {
+        phoneRelationshipValid = true;
+        displayPhone = match.display_phone_number || '';
+        verifiedName = match.verified_name || '';
+      }
+    }
+
+    return {
+      postSubscribedAppsStatus: postStatus,
+      postSubscribedAppsResult: postData.error ? WhatsAppService.sanitizeError(postData.error.message) : postData,
+      getSubscribedAppsStatus: getStatus,
+      isAppSubscribed,
+      subscribedAppsCount: appsList.length,
+      phoneRelationshipValid,
+      displayPhone,
+      verifiedName,
+    };
   }
 
   public static async fetchTemplates(): Promise<WATemplate[]> {

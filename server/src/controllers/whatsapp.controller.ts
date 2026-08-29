@@ -74,3 +74,15 @@ export async function sendTestMessage(req: Request, res: Response, next: NextFun
     next(error);
   }
 }
+
+export async function debugWabaSubscription(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const data = await WhatsAppService.debugWabaSubscription();
+    res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
