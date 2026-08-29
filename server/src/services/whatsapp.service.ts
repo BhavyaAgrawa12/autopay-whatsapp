@@ -147,6 +147,11 @@ export class WhatsAppService {
 
       logger.info('WhatsApp Cloud API connection test successful', { displayPhone: data.display_phone_number });
 
+      // Automatically subscribe WABA to Meta App Webhooks
+      if (env.WHATSAPP_BUSINESS_ACCOUNT_ID) {
+        await WhatsAppService.subscribeWabaWebhooks();
+      }
+
       return {
         connected: true,
         message: 'WhatsApp Business Cloud API connection verified successfully.',
@@ -158,8 +163,39 @@ export class WhatsAppService {
       };
     } catch (err: any) {
       const safeMsg = WhatsAppService.sanitizeError(err);
-      logger.error('WhatsApp API Connection Error', { error: safeMsg });
-      return { connected: false, message: `Connection failed: ${safeMsg}` };
+      logger.error('WhatsApp API Connection Test Error', { error: safeMsg });
+      return { connected: false, message: safeMsg };
+    }
+  }
+
+  // Explicitly subscribe WhatsApp Business Account to Meta App Webhooks via Graph API
+  public static async subscribeWabaWebhooks(): Promise<{ success: boolean; message: string }> {
+    const token = WhatsAppService.getToken();
+    if (!token || !env.WHATSAPP_BUSINESS_ACCOUNT_ID) {
+      return { success: false, message: 'WABA ID or Access Token missing' };
+    }
+
+    try {
+      const url = `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${env.WHATSAPP_BUSINESS_ACCOUNT_ID}/subscribed_apps`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (response.ok && (data.success || data.data)) {
+        logger.info('WABA subscribed to Meta App webhooks successfully', { wabaId: env.WHATSAPP_BUSINESS_ACCOUNT_ID });
+        return { success: true, message: 'WABA webhooks subscribed successfully' };
+      } else {
+        const errMsg = data.error?.message || 'Failed to subscribe WABA to webhooks';
+        logger.warn('WABA webhook subscription warning', { error: errMsg });
+        return { success: false, message: WhatsAppService.sanitizeError(errMsg) };
+      }
+    } catch (err: any) {
+      return { success: false, message: WhatsAppService.sanitizeError(err) };
     }
   }
 
