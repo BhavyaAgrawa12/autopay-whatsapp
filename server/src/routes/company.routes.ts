@@ -24,7 +24,12 @@ import {
 
 const router = Router();
 
-// Protect all company & asset management routes
+// PUBLIC UNAUTHENTICATED MEDIA FILE SERVING (MUST BE BEFORE requireAuth)
+router.get('/assets/:id/file', serveAssetFile);
+router.get('/assets/:id/download', downloadAssetFile);
+router.get('/assets/:id', serveAssetFile);
+
+// Protect remaining management routes
 router.use(requireAuth);
 
 // Profile & Logo Endpoints
@@ -45,9 +50,6 @@ router.delete('/services/:id', deleteService);
 router.get('/assets', getAssets);
 router.post('/assets', uploadAssetMiddleware.single('file'), uploadAsset);
 router.post('/assets/:id/file', uploadAssetMiddleware.single('file'), reuploadAssetFile);
-router.get('/assets/:id', serveAssetFile);
-router.get('/assets/:id/file', serveAssetFile);
-router.get('/assets/:id/download', downloadAssetFile);
 router.put('/assets/:id', renameAsset);
 router.delete('/assets/:id', deleteAsset);
 
