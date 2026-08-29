@@ -21,7 +21,8 @@ const STATUS_RANK: Record<string, number> = {
  */
 function verifyWebhookSignature(req: Request): boolean {
   if (!env.WHATSAPP_APP_SECRET || env.WHATSAPP_APP_SECRET.trim().length === 0) {
-    return true; // Bypass signature check if app secret is not set in development
+    logger.info('[WhatsApp Webhook] App secret not configured, bypassing HMAC check');
+    return true;
   }
 
   const signatureHeader = req.headers['x-hub-signature-256'] as string;
@@ -39,8 +40,13 @@ function verifyWebhookSignature(req: Request): boolean {
     .digest('hex');
 
   try {
-    return crypto.timingSafeEqual(Buffer.from(expectedSignature, 'hex'), Buffer.from(calculatedSignature, 'hex'));
+    const matched = crypto.timingSafeEqual(Buffer.from(expectedSignature, 'hex'), Buffer.from(calculatedSignature, 'hex'));
+    if (!matched) {
+      logger.warn('[WhatsApp Webhook] HMAC signature verification failed');
+    }
+    return matched;
   } catch (e) {
+    logger.warn('[WhatsApp Webhook] HMAC comparison error');
     return false;
   }
 }
@@ -82,6 +88,12 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
   // 3. Process status events asynchronously
   try {
     const body = req.body;
+    logger.info('[WhatsApp Webhook] POST received', {
+      hasBody: !!body,
+      objectType: body?.object,
+      hasEntries: Array.isArray(body?.entry),
+    });
+
     if (!body || body.object !== 'whatsapp_business_account' || !Array.isArray(body.entry)) {
       return; // Ignore non-WhatsApp or malformed webhook payloads safely
     }
@@ -110,7 +122,7 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
           const recipient = await CampaignRecipient.findOne({ whatsappMessageId: messageId });
 
           // Safe development diagnostics (Directive 8)
-          logger.info('[WhatsApp Webhook] Status event received', {
+          logger.info('[WhatsApp Webhook] Status event parsed', {
             status: targetStatus,
             messageIdSuffix: messageId ? messageId.slice(-8) : '',
             recipientMatched: !!recipient,
@@ -181,9 +193,9 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
           }
 
           await recipient.save();
-          logger.info(`[WhatsApp Webhook] Message status updated to ${recipient.status}`, {
+          logger.info('[WhatsApp Webhook] Status update completed', {
             messageIdSuffix: messageId.slice(-8),
-            status: recipient.status,
+            resultingStatus: recipient.status,
           });
         }
       }
