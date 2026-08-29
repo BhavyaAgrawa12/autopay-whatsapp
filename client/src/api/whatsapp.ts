@@ -1,9 +1,9 @@
 import { WhatsAppStatusInfo, WATemplate, SendTestMessagePayload } from '../types/whatsapp';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, getAuthHeaders } from './config';
 
 export async function fetchWhatsAppStatusApi(): Promise<WhatsAppStatusInfo> {
   const res = await fetch(`${API_BASE_URL}/api/whatsapp/status`, {
-    headers: { Accept: 'application/json' },
+    headers: getAuthHeaders({ Accept: 'application/json' }),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to fetch WhatsApp status');
@@ -14,7 +14,7 @@ export async function fetchWhatsAppStatusApi(): Promise<WhatsAppStatusInfo> {
 export async function testWhatsAppConnectionApi(): Promise<{ connected: boolean; message: string; details?: any }> {
   const res = await fetch(`${API_BASE_URL}/api/whatsapp/test-connection`, {
     method: 'POST',
-    headers: { Accept: 'application/json' },
+    headers: getAuthHeaders({ Accept: 'application/json' }),
     credentials: 'include',
   });
   const json = await res.json();
@@ -26,7 +26,7 @@ export async function testWhatsAppConnectionApi(): Promise<{ connected: boolean;
 
 export async function fetchTemplatesApi(): Promise<WATemplate[]> {
   const res = await fetch(`${API_BASE_URL}/api/whatsapp/templates`, {
-    headers: { Accept: 'application/json' },
+    headers: getAuthHeaders({ Accept: 'application/json' }),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to fetch templates');
@@ -37,7 +37,7 @@ export async function fetchTemplatesApi(): Promise<WATemplate[]> {
 export async function syncTemplatesApi(): Promise<WATemplate[]> {
   const res = await fetch(`${API_BASE_URL}/api/whatsapp/templates/sync`, {
     method: 'POST',
-    headers: { Accept: 'application/json' },
+    headers: getAuthHeaders({ Accept: 'application/json' }),
     credentials: 'include',
   });
   if (!res.ok) {
@@ -51,10 +51,10 @@ export async function syncTemplatesApi(): Promise<WATemplate[]> {
 export async function sendTestMessageApi(payload: SendTestMessagePayload): Promise<{ messageId: string; message: string }> {
   const res = await fetch(`${API_BASE_URL}/api/whatsapp/send-test`, {
     method: 'POST',
-    headers: {
+    headers: getAuthHeaders({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-    },
+    }),
     credentials: 'include',
     body: JSON.stringify(payload),
   });
