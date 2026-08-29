@@ -21,6 +21,7 @@ export async function fetchAssetsApi(query?: {
   return raw.map((a: any) => ({
     ...a,
     id: a.id || a.assetId || a._id,
+    uploadedAt: a.uploadedAt || a.createdAt || new Date().toISOString(),
   }));
 }
 

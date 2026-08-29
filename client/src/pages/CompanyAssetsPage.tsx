@@ -23,6 +23,7 @@ import { ErrorAlert } from '../components/ui/ErrorAlert';
 import { EmptyState } from '../components/ui/EmptyState';
 import { CompanyAssetRecord, AssetCategory } from '../types/company';
 import { fetchAssetsApi, uploadAssetApi, renameAssetApi, deleteAssetApi } from '../api/assets';
+import { API_BASE_URL } from '../api/config';
 
 export const CompanyAssetsPage: React.FC = () => {
   const [assets, setAssets] = useState<CompanyAssetRecord[]>([]);
@@ -251,7 +252,7 @@ export const CompanyAssetsPage: React.FC = () => {
               >
                 {asset.category === 'IMAGE' || asset.category === 'GIF' ? (
                   <img
-                    src={`/api/company/assets/${asset.id}/file`}
+                    src={`${API_BASE_URL}/api/company/assets/${asset.id}/file`}
                     alt={asset.originalFilename}
                     className="w-full h-full object-cover"
                     loading="lazy"
@@ -284,7 +285,13 @@ export const CompanyAssetsPage: React.FC = () => {
                 </h4>
                 <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
                   <span>{formatFileSize(asset.fileSize)}</span>
-                  <span>{new Date(asset.uploadedAt).toLocaleDateString()}</span>
+                  <span>
+                    {(() => {
+                      const rawDate = asset.uploadedAt || (asset as any).createdAt;
+                      const parsed = rawDate ? new Date(rawDate) : null;
+                      return parsed && !isNaN(parsed.getTime()) ? parsed.toLocaleDateString() : 'Recently';
+                    })()}
+                  </span>
                 </div>
               </div>
 
@@ -300,7 +307,7 @@ export const CompanyAssetsPage: React.FC = () => {
                 </Button>
                 <div className="flex items-center gap-1">
                   <a
-                    href={`/api/company/assets/${asset.id}/download`}
+                    href={`${API_BASE_URL}/api/company/assets/${asset.id}/download`}
                     download={asset.originalFilename}
                     className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-800"
                     title="Download asset"
@@ -351,7 +358,7 @@ export const CompanyAssetsPage: React.FC = () => {
             <div className="p-6 bg-slate-950 flex items-center justify-center min-h-[300px]">
               {previewAsset.category === 'IMAGE' || previewAsset.category === 'GIF' ? (
                 <img
-                  src={`/api/company/assets/${previewAsset.id}/file`}
+                  src={`${API_BASE_URL}/api/company/assets/${previewAsset.id}/file`}
                   alt={previewAsset.originalFilename}
                   className="max-h-[60vh] max-w-full object-contain rounded-lg shadow-xl"
                 />
@@ -360,14 +367,14 @@ export const CompanyAssetsPage: React.FC = () => {
                   controls
                   autoPlay
                   className="max-h-[60vh] max-w-full rounded-lg shadow-xl"
-                  src={`/api/company/assets/${previewAsset.id}/file`}
+                  src={`${API_BASE_URL}/api/company/assets/${previewAsset.id}/file`}
                 >
                   Your browser does not support HTML5 video playback.
                 </video>
               ) : previewAsset.category === 'AUDIO' ? (
                 <div className="w-full max-w-md p-6 bg-slate-900 rounded-xl border border-slate-800 text-center space-y-4">
                   <Music className="w-12 h-12 text-amber-400 mx-auto" />
-                  <audio controls className="w-full" src={`/api/company/assets/${previewAsset.id}/file`}>
+                  <audio controls className="w-full" src={`${API_BASE_URL}/api/company/assets/${previewAsset.id}/file`}>
                     Your browser does not support HTML5 audio.
                   </audio>
                 </div>
@@ -376,7 +383,7 @@ export const CompanyAssetsPage: React.FC = () => {
                   <FileText className="w-16 h-16 text-slate-500 mx-auto" />
                   <p className="text-sm text-slate-300 font-medium">Document File Preview</p>
                   <a
-                    href={`/api/company/assets/${previewAsset.id}/download`}
+                    href={`${API_BASE_URL}/api/company/assets/${previewAsset.id}/download`}
                     download={previewAsset.originalFilename}
                   >
                     <Button variant="primary" size="sm" leftIcon={<Download className="w-4 h-4" />}>
@@ -389,7 +396,7 @@ export const CompanyAssetsPage: React.FC = () => {
 
             <div className="p-4 border-t border-slate-800 bg-slate-900 flex justify-between items-center text-xs">
               <span className="text-slate-500 font-mono">Asset ID: {previewAsset.id}</span>
-              <a href={`/api/company/assets/${previewAsset.id}/download`} download={previewAsset.originalFilename}>
+              <a href={`${API_BASE_URL}/api/company/assets/${previewAsset.id}/download`} download={previewAsset.originalFilename}>
                 <Button variant="outline" size="sm" leftIcon={<Download className="w-4 h-4" />}>
                   Download Asset
                 </Button>
