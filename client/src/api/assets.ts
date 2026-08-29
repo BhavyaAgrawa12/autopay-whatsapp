@@ -1,4 +1,5 @@
 import { CompanyAssetRecord } from '../types/company';
+import { API_BASE_URL } from './config';
 
 export async function fetchAssetsApi(query?: {
   search?: string;
@@ -10,7 +11,7 @@ export async function fetchAssetsApi(query?: {
   if (query?.category) params.append('category', query.category);
   if (query?.sort) params.append('sort', query.sort);
 
-  const res = await fetch(`/api/company/assets?${params.toString()}`, {
+  const res = await fetch(`${API_BASE_URL}/api/company/assets?${params.toString()}`, {
     headers: { Accept: 'application/json' },
     credentials: 'include',
   });
@@ -28,7 +29,7 @@ export async function uploadAssetApi(file: File, description?: string): Promise<
   formData.append('file', file);
   if (description) formData.append('description', description);
 
-  const res = await fetch('/api/company/assets', {
+  const res = await fetch(`${API_BASE_URL}/api/company/assets`, {
     method: 'POST',
     credentials: 'include',
     body: formData,
@@ -44,7 +45,7 @@ export async function uploadAssetApi(file: File, description?: string): Promise<
 }
 
 export async function renameAssetApi(id: string, newFilename: string): Promise<CompanyAssetRecord> {
-  const res = await fetch(`/api/company/assets/${id}`, {
+  const res = await fetch(`${API_BASE_URL}/api/company/assets/${id}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -59,7 +60,7 @@ export async function renameAssetApi(id: string, newFilename: string): Promise<C
 }
 
 export async function deleteAssetApi(id: string): Promise<void> {
-  const res = await fetch(`/api/company/assets/${id}`, {
+  const res = await fetch(`${API_BASE_URL}/api/company/assets/${id}`, {
     method: 'DELETE',
     credentials: 'include',
   });

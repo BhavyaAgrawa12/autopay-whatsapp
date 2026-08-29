@@ -1,4 +1,5 @@
 import { Contact, MarketingOptInStatus } from '../types/contact';
+import { API_BASE_URL } from './config';
 
 export interface PaginatedContactsResponse {
   contacts: Contact[];
@@ -22,7 +23,7 @@ export async function fetchContactsApi(query?: {
   if (query?.optIn) params.append('optIn', query.optIn);
   if (query?.sort) params.append('sort', query.sort);
 
-  const res = await fetch(`/api/contacts?${params.toString()}`, {
+  const res = await fetch(`${API_BASE_URL}/api/contacts?${params.toString()}`, {
     headers: { Accept: 'application/json' },
     credentials: 'include',
   });
@@ -56,7 +57,7 @@ export async function importContactsApi(formData: FormData): Promise<{
   invalidRows: any[];
   errorReportXlsxBase64?: string;
 }> {
-  const res = await fetch('/api/contacts/import', {
+  const res = await fetch(`${API_BASE_URL}/api/contacts/import`, {
     method: 'POST',
     credentials: 'include',
     body: formData,
@@ -75,7 +76,7 @@ export async function updateContactOptInApi(
   id: string,
   marketingOptIn: MarketingOptInStatus
 ): Promise<Contact> {
-  const res = await fetch(`/api/contacts/${id}/opt-in`, {
+  const res = await fetch(`${API_BASE_URL}/api/contacts/${id}/opt-in`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
@@ -91,7 +92,7 @@ export async function updateContactOptInApi(
 }
 
 export async function deleteContactApi(id: string): Promise<void> {
-  const res = await fetch(`/api/contacts/${id}`, {
+  const res = await fetch(`${API_BASE_URL}/api/contacts/${id}`, {
     method: 'DELETE',
     credentials: 'include',
   });

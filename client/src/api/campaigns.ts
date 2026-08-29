@@ -1,4 +1,5 @@
 import { Campaign } from '../types/campaign';
+import { API_BASE_URL } from './config';
 
 export interface CampaignProgressData {
   total: number;
@@ -42,7 +43,7 @@ export interface PaginatedRecipientsResponse {
 }
 
 export async function fetchCampaignsApi(): Promise<Campaign[]> {
-  const res = await fetch('/api/campaigns', {
+  const res = await fetch(`${API_BASE_URL}/api/campaigns`, {
     headers: { Accept: 'application/json' },
     credentials: 'include',
   });
@@ -52,7 +53,7 @@ export async function fetchCampaignsApi(): Promise<Campaign[]> {
 }
 
 export async function saveCampaignApi(campaign: Partial<Campaign>): Promise<Campaign> {
-  const res = await fetch('/api/campaigns', {
+  const res = await fetch(`${API_BASE_URL}/api/campaigns`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -67,7 +68,7 @@ export async function saveCampaignApi(campaign: Partial<Campaign>): Promise<Camp
 }
 
 export async function deleteCampaignApi(campaignId: string): Promise<void> {
-  const res = await fetch(`/api/campaigns/${campaignId}`, {
+  const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}`, {
     method: 'DELETE',
     credentials: 'include',
   });
@@ -85,7 +86,7 @@ export async function startCampaignApi(
     recipients: any[];
   }
 ): Promise<{ campaignId: string; status: string; totalJobs: number }> {
-  const res = await fetch(`/api/campaigns/${campaignId}/send`, {
+  const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/send`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -103,7 +104,7 @@ export async function startCampaignApi(
 }
 
 export async function pauseCampaignApi(campaignId: string): Promise<void> {
-  const res = await fetch(`/api/campaigns/${campaignId}/pause`, {
+  const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/pause`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -111,7 +112,7 @@ export async function pauseCampaignApi(campaignId: string): Promise<void> {
 }
 
 export async function resumeCampaignApi(campaignId: string): Promise<void> {
-  const res = await fetch(`/api/campaigns/${campaignId}/resume`, {
+  const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/resume`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -119,7 +120,7 @@ export async function resumeCampaignApi(campaignId: string): Promise<void> {
 }
 
 export async function cancelCampaignApi(campaignId: string): Promise<void> {
-  const res = await fetch(`/api/campaigns/${campaignId}/cancel`, {
+  const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/cancel`, {
     method: 'POST',
     credentials: 'include',
   });
@@ -127,7 +128,7 @@ export async function cancelCampaignApi(campaignId: string): Promise<void> {
 }
 
 export async function fetchCampaignProgressApi(campaignId: string): Promise<CampaignProgressData> {
-  const res = await fetch(`/api/campaigns/${campaignId}/progress`, {
+  const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/progress`, {
     headers: { Accept: 'application/json' },
     credentials: 'include',
   });
@@ -146,7 +147,7 @@ export async function fetchCampaignRecipientsApi(
   if (params?.status) query.set('status', params.status);
   if (params?.search) query.set('search', params.search);
 
-  const res = await fetch(`/api/campaigns/${campaignId}/recipients?${query.toString()}`, {
+  const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/recipients?${query.toString()}`, {
     headers: { Accept: 'application/json' },
     credentials: 'include',
   });
@@ -186,7 +187,7 @@ export interface CampaignReportData {
 }
 
 export async function fetchCampaignReportApi(campaignId: string): Promise<CampaignReportData> {
-  const res = await fetch(`/api/campaigns/${campaignId}/report`, {
+  const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/report`, {
     headers: { Accept: 'application/json' },
     credentials: 'include',
   });
@@ -199,7 +200,7 @@ export async function downloadCampaignExcelApi(
   campaignId: string,
   exportType: 'failed' | 'successful' | 'all'
 ): Promise<void> {
-  const res = await fetch(`/api/campaigns/${campaignId}/export/${exportType}`, {
+  const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/export/${exportType}`, {
     credentials: 'include',
   });
   if (!res.ok) throw new Error(`Failed to export ${exportType} Excel report`);

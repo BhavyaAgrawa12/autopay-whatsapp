@@ -1,7 +1,8 @@
 import { CompanyProfile, CompanyServiceItem } from '../types/company';
+import { API_BASE_URL } from './config';
 
 export async function fetchCompanyProfileApi(): Promise<CompanyProfile> {
-  const res = await fetch('/api/company', {
+  const res = await fetch(`${API_BASE_URL}/api/company`, {
     headers: { Accept: 'application/json' },
     credentials: 'include',
   });
@@ -11,7 +12,7 @@ export async function fetchCompanyProfileApi(): Promise<CompanyProfile> {
 }
 
 export async function updateCompanyProfileApi(data: Partial<CompanyProfile>): Promise<CompanyProfile> {
-  const res = await fetch('/api/company', {
+  const res = await fetch(`${API_BASE_URL}/api/company`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -29,7 +30,7 @@ export async function uploadCompanyLogoApi(file: File): Promise<{ logoUrl: strin
   const formData = new FormData();
   formData.append('logo', file);
 
-  const res = await fetch('/api/company/logo', {
+  const res = await fetch(`${API_BASE_URL}/api/company/logo`, {
     method: 'POST',
     credentials: 'include',
     body: formData,
@@ -43,7 +44,7 @@ export async function uploadCompanyLogoApi(file: File): Promise<{ logoUrl: strin
 }
 
 export async function removeCompanyLogoApi(): Promise<CompanyProfile> {
-  const res = await fetch('/api/company/logo', {
+  const res = await fetch(`${API_BASE_URL}/api/company/logo`, {
     method: 'DELETE',
     credentials: 'include',
   });
@@ -54,7 +55,7 @@ export async function removeCompanyLogoApi(): Promise<CompanyProfile> {
 
 // Services API
 export async function addCompanyServiceApi(data: { name: string; description: string }): Promise<CompanyServiceItem> {
-  const res = await fetch('/api/company/services', {
+  const res = await fetch(`${API_BASE_URL}/api/company/services`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -69,7 +70,7 @@ export async function addCompanyServiceApi(data: { name: string; description: st
 }
 
 export async function updateCompanyServiceApi(id: string, data: Partial<CompanyServiceItem>): Promise<CompanyServiceItem> {
-  const res = await fetch(`/api/company/services/${id}`, {
+  const res = await fetch(`${API_BASE_URL}/api/company/services/${id}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -84,7 +85,7 @@ export async function updateCompanyServiceApi(id: string, data: Partial<CompanyS
 }
 
 export async function deleteCompanyServiceApi(id: string): Promise<void> {
-  const res = await fetch(`/api/company/services/${id}`, {
+  const res = await fetch(`${API_BASE_URL}/api/company/services/${id}`, {
     method: 'DELETE',
     credentials: 'include',
   });

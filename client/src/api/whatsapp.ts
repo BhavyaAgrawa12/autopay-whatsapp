@@ -1,7 +1,8 @@
 import { WhatsAppStatusInfo, WATemplate, SendTestMessagePayload } from '../types/whatsapp';
+import { API_BASE_URL } from './config';
 
 export async function fetchWhatsAppStatusApi(): Promise<WhatsAppStatusInfo> {
-  const res = await fetch('/api/whatsapp/status', {
+  const res = await fetch(`${API_BASE_URL}/api/whatsapp/status`, {
     headers: { Accept: 'application/json' },
     credentials: 'include',
   });
@@ -11,7 +12,7 @@ export async function fetchWhatsAppStatusApi(): Promise<WhatsAppStatusInfo> {
 }
 
 export async function testWhatsAppConnectionApi(): Promise<{ connected: boolean; message: string; details?: any }> {
-  const res = await fetch('/api/whatsapp/test-connection', {
+  const res = await fetch(`${API_BASE_URL}/api/whatsapp/test-connection`, {
     method: 'POST',
     headers: { Accept: 'application/json' },
     credentials: 'include',
@@ -24,7 +25,7 @@ export async function testWhatsAppConnectionApi(): Promise<{ connected: boolean;
 }
 
 export async function fetchTemplatesApi(): Promise<WATemplate[]> {
-  const res = await fetch('/api/whatsapp/templates', {
+  const res = await fetch(`${API_BASE_URL}/api/whatsapp/templates`, {
     headers: { Accept: 'application/json' },
     credentials: 'include',
   });
@@ -34,7 +35,7 @@ export async function fetchTemplatesApi(): Promise<WATemplate[]> {
 }
 
 export async function syncTemplatesApi(): Promise<WATemplate[]> {
-  const res = await fetch('/api/whatsapp/templates/sync', {
+  const res = await fetch(`${API_BASE_URL}/api/whatsapp/templates/sync`, {
     method: 'POST',
     headers: { Accept: 'application/json' },
     credentials: 'include',
@@ -48,7 +49,7 @@ export async function syncTemplatesApi(): Promise<WATemplate[]> {
 }
 
 export async function sendTestMessageApi(payload: SendTestMessagePayload): Promise<{ messageId: string; message: string }> {
-  const res = await fetch('/api/whatsapp/send-test', {
+  const res = await fetch(`${API_BASE_URL}/api/whatsapp/send-test`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
