@@ -1,0 +1,22 @@
+{
+  "name": "whatsapp-promotional-campaign-manager",
+  "version": "1.0.0",
+  "private": true,
+  "description": "IT Company Internal WhatsApp Promotional Campaign Management System",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build": "npm run build:server && npm run build:client",
+    "build:server": "npm --prefix server run build",
+    "build:client": "npm --prefix client run build",
+    "install:all": "npm install && npm --prefix server install && npm --prefix client install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

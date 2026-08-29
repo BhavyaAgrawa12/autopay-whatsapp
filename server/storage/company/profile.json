@@ -1,0 +1,38 @@
+{
+  "companyName": "AutoPay Tech Solutions",
+  "description": "Modern IT and digital solutions provider specializing in cloud architecture, custom software, and marketing automation.",
+  "website": "https://autopaytech.com",
+  "phone": "+91 98765 00000",
+  "email": "contact@autopaytech.com",
+  "address": "101 Tech Park, Malviya Nagar, Jaipur, Rajasthan, India",
+  "socialLinks": {
+    "linkedin": "https://linkedin.com/company/autopaytech",
+    "twitter": "https://twitter.com/autopaytech",
+    "facebook": "https://facebook.com/autopaytech",
+    "instagram": "https://instagram.com/autopaytech"
+  },
+  "services": [
+    {
+      "id": "srv-1",
+      "name": "Web Application Development",
+      "description": "Custom React & Node.js scalable web applications.",
+      "isActive": true,
+      "order": 1
+    },
+    {
+      "id": "srv-2",
+      "name": "Mobile App Development",
+      "description": "Cross-platform iOS and Android mobile solutions.",
+      "isActive": true,
+      "order": 2
+    },
+    {
+      "id": "srv-3",
+      "name": "Cloud & DevOps Architecture",
+      "description": "AWS, GCP, and Docker cloud infrastructure management.",
+      "isActive": true,
+      "order": 3
+    }
+  ],
+  "updatedAt": "2026-08-27T12:36:57.841Z"
+}
