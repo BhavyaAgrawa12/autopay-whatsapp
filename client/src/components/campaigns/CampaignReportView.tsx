@@ -58,6 +58,10 @@ export const CampaignReportView: React.FC<CampaignReportViewProps> = ({ campaign
 
   useEffect(() => {
     loadReportAndRecipients();
+    const interval = setInterval(() => {
+      loadReportAndRecipients();
+    }, 5000);
+    return () => clearInterval(interval);
   }, [campaignId, page, statusFilter, search]);
 
   const handleDownloadExcel = async (exportType: 'failed' | 'successful' | 'all') => {

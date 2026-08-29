@@ -21,13 +21,13 @@ const STATUS_RANK: Record<string, number> = {
  */
 function verifyWebhookSignature(req: Request): boolean {
   if (!env.WHATSAPP_APP_SECRET || env.WHATSAPP_APP_SECRET.trim().length === 0) {
-    return true;
+    return true; // Bypass signature check if app secret is not set in development
   }
 
   const signatureHeader = req.headers['x-hub-signature-256'] as string;
   if (!signatureHeader || !signatureHeader.startsWith('sha256=')) {
-    logger.warn('[WhatsApp Webhook] Missing X-Hub-Signature-256 header, continuing in lenient mode');
-    return true;
+    logger.warn('[WhatsApp Webhook] Missing or malformed X-Hub-Signature-256 header');
+    return false;
   }
 
   const expectedSignature = signatureHeader.substring(7);
@@ -39,13 +39,9 @@ function verifyWebhookSignature(req: Request): boolean {
     .digest('hex');
 
   try {
-    const isValid = crypto.timingSafeEqual(Buffer.from(expectedSignature, 'hex'), Buffer.from(calculatedSignature, 'hex'));
-    if (!isValid) {
-      logger.warn('[WhatsApp Webhook] X-Hub-Signature-256 mismatch, proceeding in lenient mode to update stats');
-    }
-    return true;
+    return crypto.timingSafeEqual(Buffer.from(expectedSignature, 'hex'), Buffer.from(calculatedSignature, 'hex'));
   } catch (e) {
-    return true;
+    return false;
   }
 }
 
@@ -113,8 +109,17 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
           // A. Lookup recipient by exact whatsappMessageId
           const recipient = await CampaignRecipient.findOne({ whatsappMessageId: messageId });
 
+          // Safe development diagnostics (Directive 8)
+          logger.info('[WhatsApp Webhook] Status event received', {
+            status: targetStatus,
+            messageIdSuffix: messageId ? messageId.slice(-8) : '',
+            recipientMatched: !!recipient,
+          });
+
           if (!recipient) {
-            logger.warn('[WhatsApp Webhook] Unknown message ID received', { whatsappMessageId: messageId });
+            logger.warn('[WhatsApp Webhook] Unknown message ID received', {
+              messageIdSuffix: messageId ? messageId.slice(-8) : '',
+            });
             continue;
           }
 
@@ -140,10 +145,13 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
             });
           } catch (err: any) {
             if (err.code === 11000) {
-              logger.info('[WhatsApp Webhook] Idempotent duplicate event ignored', { whatsappMessageId: messageId, status: targetStatus });
-              continue; // Duplicate event arrived, ignore safely
+              logger.info('[WhatsApp Webhook] Idempotent duplicate event recorded', {
+                messageIdSuffix: messageId.slice(-8),
+                status: targetStatus,
+              });
+            } else {
+              logger.error('[WhatsApp Webhook] Failed to persist MessageEvent', { error: err.message });
             }
-            logger.error('[WhatsApp Webhook] Failed to persist MessageEvent', { error: err.message });
           }
 
           // C. Update Recipient Timestamps safely
@@ -174,7 +182,7 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
 
           await recipient.save();
           logger.info(`[WhatsApp Webhook] Message status updated to ${recipient.status}`, {
-            whatsappMessageId: messageId,
+            messageIdSuffix: messageId.slice(-8),
             status: recipient.status,
           });
         }
