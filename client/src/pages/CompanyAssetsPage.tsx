@@ -22,7 +22,7 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ErrorAlert } from '../components/ui/ErrorAlert';
 import { EmptyState } from '../components/ui/EmptyState';
 import { CompanyAssetRecord, AssetCategory } from '../types/company';
-import { fetchAssetsApi, uploadAssetApi, renameAssetApi, deleteAssetApi } from '../api/assets';
+import { fetchAssetsApi, uploadAssetApi, reuploadAssetApi, renameAssetApi, deleteAssetApi } from '../api/assets';
 import { API_BASE_URL } from '../api/config';
 
 export const CompanyAssetsPage: React.FC = () => {
@@ -106,6 +106,24 @@ export const CompanyAssetsPage: React.FC = () => {
     }
   };
 
+  const [reuploadTarget, setReuploadTarget] = useState<CompanyAssetRecord | null>(null);
+
+  const handleReuploadFile = async (file: File) => {
+    if (!reuploadTarget) return;
+    setIsUploading(true);
+    setError(null);
+    try {
+      const updated = await reuploadAssetApi(reuploadTarget.id, file);
+      setReuploadTarget(null);
+      if (previewAsset?.id === updated.id) setPreviewAsset(updated);
+      await loadAssets();
+    } catch (err: any) {
+      setError(err.message || 'Failed to re-upload asset file.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     try {
@@ -157,6 +175,14 @@ export const CompanyAssetsPage: React.FC = () => {
             />
           </label>
         }
+      />
+
+      {/* Hidden input for re-uploading single asset file */}
+      <input
+        id="single-asset-reupload-input"
+        type="file"
+        className="hidden"
+        onChange={(e) => e.target.files?.[0] && handleReuploadFile(e.target.files[0])}
       />
 
       {error && <ErrorAlert message={error} />}
@@ -306,6 +332,16 @@ export const CompanyAssetsPage: React.FC = () => {
                   Preview
                 </Button>
                 <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      setReuploadTarget(asset);
+                      document.getElementById('single-asset-reupload-input')?.click();
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-emerald-400 rounded hover:bg-slate-800"
+                    title="Re-upload file to server"
+                  >
+                    <UploadCloud className="w-3.5 h-3.5" />
+                  </button>
                   <a
                     href={`${API_BASE_URL}/api/company/assets/${asset.id}/download`}
                     download={asset.originalFilename}
@@ -396,11 +432,24 @@ export const CompanyAssetsPage: React.FC = () => {
 
             <div className="p-4 border-t border-slate-800 bg-slate-900 flex justify-between items-center text-xs">
               <span className="text-slate-500 font-mono">Asset ID: {previewAsset.id}</span>
-              <a href={`${API_BASE_URL}/api/company/assets/${previewAsset.id}/download`} download={previewAsset.originalFilename}>
-                <Button variant="outline" size="sm" leftIcon={<Download className="w-4 h-4" />}>
-                  Download Asset
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setReuploadTarget(previewAsset);
+                    document.getElementById('single-asset-reupload-input')?.click();
+                  }}
+                  leftIcon={<UploadCloud className="w-4 h-4" />}
+                >
+                  Re-upload File
                 </Button>
-              </a>
+                <a href={`${API_BASE_URL}/api/company/assets/${previewAsset.id}/download`} download={previewAsset.originalFilename}>
+                  <Button variant="outline" size="sm" leftIcon={<Download className="w-4 h-4" />}>
+                    Download Asset
+                  </Button>
+                </a>
+              </div>
             </div>
           </div>
         </div>

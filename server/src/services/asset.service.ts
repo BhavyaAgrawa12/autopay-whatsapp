@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import mongoose from 'mongoose';
 import { CompanyAsset, AssetCategory, ICompanyAsset } from '../models/CompanyAsset.model.js';
 import { ASSETS_MEDIA_DIR, sanitizeFilename } from '../utils/fileStorage.js';
 import { NotFoundError, ValidationError } from '../utils/errors.js';
@@ -43,7 +44,10 @@ export class AssetService {
   }
 
   public static async getAssetById(assetId: string): Promise<ICompanyAsset> {
-    const asset = await CompanyAsset.findOne({ assetId });
+    let asset = await CompanyAsset.findOne({ assetId });
+    if (!asset && mongoose.Types.ObjectId.isValid(assetId)) {
+      asset = await CompanyAsset.findById(assetId);
+    }
     if (!asset) {
       throw new NotFoundError(`Asset with ID '${assetId}' not found`);
     }
@@ -73,15 +77,41 @@ export class AssetService {
     return newAsset;
   }
 
+  public static async reuploadAsset(assetId: string, file: Express.Multer.File): Promise<ICompanyAsset> {
+    if (!file) {
+      throw new ValidationError('No file provided for re-upload');
+    }
+
+    const asset = await AssetService.getAssetById(assetId);
+
+    try {
+      const oldPath = path.join(ASSETS_MEDIA_DIR, asset.storedFilename);
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+    } catch (e) {
+      console.warn('Could not remove old physical file:', e);
+    }
+
+    const ext = path.extname(file.originalname).toLowerCase();
+    const category = AssetService.determineCategory(ext, file.mimetype);
+
+    asset.storedFilename = file.filename;
+    asset.mimeType = file.mimetype;
+    asset.category = category;
+    asset.fileSize = file.size;
+    asset.relativePath = `/storage/company/assets/${file.filename}`;
+
+    await asset.save();
+    return asset;
+  }
+
   public static async renameAsset(assetId: string, newFilename: string): Promise<ICompanyAsset> {
     if (!newFilename || !newFilename.trim()) {
       throw new ValidationError('New filename cannot be empty');
     }
 
-    const asset = await CompanyAsset.findOne({ assetId });
-    if (!asset) {
-      throw new NotFoundError(`Asset with ID '${assetId}' not found`);
-    }
+    const asset = await AssetService.getAssetById(assetId);
 
     const sanitized = sanitizeFilename(newFilename.trim());
     const oldExt = path.extname(asset.originalFilename);
@@ -93,10 +123,7 @@ export class AssetService {
   }
 
   public static async deleteAsset(assetId: string): Promise<void> {
-    const asset = await CompanyAsset.findOne({ assetId });
-    if (!asset) {
-      throw new NotFoundError(`Asset with ID '${assetId}' not found`);
-    }
+    const asset = await AssetService.getAssetById(assetId);
 
     try {
       const fullPath = path.join(ASSETS_MEDIA_DIR, asset.storedFilename);
@@ -107,10 +134,10 @@ export class AssetService {
       console.error(`Failed to delete physical asset file '${asset.storedFilename}':`, err);
     }
 
-    await CompanyAsset.deleteOne({ assetId });
+    await CompanyAsset.deleteOne({ _id: asset._id });
   }
 
-  public static async getPhysicalFilePath(assetId: string): Promise<{ fullPath: string; asset: ICompanyAsset }> {
+  public static async getPhysicalFilePath(assetId: string): Promise<{ fullPath: string; asset: ICompanyAsset; isMissing: boolean }> {
     const asset = await AssetService.getAssetById(assetId);
     const fullPath = path.join(ASSETS_MEDIA_DIR, asset.storedFilename);
 
@@ -118,10 +145,7 @@ export class AssetService {
       throw new ValidationError('Invalid path traversal detected');
     }
 
-    if (!fs.existsSync(fullPath)) {
-      throw new NotFoundError('Physical asset file not found on disk');
-    }
-
-    return { fullPath, asset };
+    const isMissing = !fs.existsSync(fullPath);
+    return { fullPath, asset, isMissing };
   }
 }

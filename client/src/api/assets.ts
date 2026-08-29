@@ -46,6 +46,31 @@ export async function uploadAssetApi(file: File, description?: string): Promise<
   return json.data;
 }
 
+export async function reuploadAssetApi(id: string, file: File): Promise<CompanyAssetRecord> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(`${API_BASE_URL}/api/company/assets/${id}/file`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error?.message || 'Failed to re-upload media asset file');
+  }
+
+  const json = await res.json();
+  const a = json.data;
+  return {
+    ...a,
+    id: a.id || a.assetId || a._id,
+    uploadedAt: a.uploadedAt || a.createdAt || new Date().toISOString(),
+  };
+}
+
 export async function renameAssetApi(id: string, newFilename: string): Promise<CompanyAssetRecord> {
   const res = await fetch(`${API_BASE_URL}/api/company/assets/${id}`, {
     method: 'PUT',

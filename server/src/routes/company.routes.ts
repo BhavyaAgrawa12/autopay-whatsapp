@@ -17,6 +17,7 @@ import {
   uploadAsset,
   serveAssetFile,
   downloadAssetFile,
+  reuploadAssetFile,
   renameAsset,
   deleteAsset,
 } from '../controllers/asset.controller.js';
@@ -43,6 +44,7 @@ router.delete('/services/:id', deleteService);
 // Asset Library Endpoints
 router.get('/assets', getAssets);
 router.post('/assets', uploadAssetMiddleware.single('file'), uploadAsset);
+router.post('/assets/:id/file', uploadAssetMiddleware.single('file'), reuploadAssetFile);
 router.get('/assets/:id', serveAssetFile);
 router.get('/assets/:id/file', serveAssetFile);
 router.get('/assets/:id/download', downloadAssetFile);
