@@ -1,5 +1,5 @@
 import { Contact, MarketingOptInStatus } from '../types/contact';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, getAuthHeaders } from './config';
 
 export interface PaginatedContactsResponse {
   contacts: Contact[];
@@ -24,7 +24,7 @@ export async function fetchContactsApi(query?: {
   if (query?.sort) params.append('sort', query.sort);
 
   const res = await fetch(`${API_BASE_URL}/api/contacts?${params.toString()}`, {
-    headers: { Accept: 'application/json' },
+    headers: getAuthHeaders({ Accept: 'application/json' }),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to fetch contacts');
@@ -59,6 +59,7 @@ export async function importContactsApi(formData: FormData): Promise<{
 }> {
   const res = await fetch(`${API_BASE_URL}/api/contacts/import`, {
     method: 'POST',
+    headers: getAuthHeaders(),
     credentials: 'include',
     body: formData,
   });
@@ -78,10 +79,10 @@ export async function updateContactOptInApi(
 ): Promise<Contact> {
   const res = await fetch(`${API_BASE_URL}/api/contacts/${id}/opt-in`, {
     method: 'PATCH',
-    headers: {
+    headers: getAuthHeaders({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-    },
+    }),
     credentials: 'include',
     body: JSON.stringify({ marketingOptIn }),
   });
@@ -94,6 +95,7 @@ export async function updateContactOptInApi(
 export async function deleteContactApi(id: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/contacts/${id}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to delete contact');

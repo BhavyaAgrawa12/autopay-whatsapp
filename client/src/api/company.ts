@@ -1,9 +1,9 @@
 import { CompanyProfile, CompanyServiceItem } from '../types/company';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, getAuthHeaders } from './config';
 
 export async function fetchCompanyProfileApi(): Promise<CompanyProfile> {
   const res = await fetch(`${API_BASE_URL}/api/company`, {
-    headers: { Accept: 'application/json' },
+    headers: getAuthHeaders({ Accept: 'application/json' }),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to fetch company profile');
@@ -14,10 +14,10 @@ export async function fetchCompanyProfileApi(): Promise<CompanyProfile> {
 export async function updateCompanyProfileApi(data: Partial<CompanyProfile>): Promise<CompanyProfile> {
   const res = await fetch(`${API_BASE_URL}/api/company`, {
     method: 'PUT',
-    headers: {
+    headers: getAuthHeaders({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-    },
+    }),
     credentials: 'include',
     body: JSON.stringify(data),
   });
@@ -32,6 +32,7 @@ export async function uploadCompanyLogoApi(file: File): Promise<{ logoUrl: strin
 
   const res = await fetch(`${API_BASE_URL}/api/company/logo`, {
     method: 'POST',
+    headers: getAuthHeaders(),
     credentials: 'include',
     body: formData,
   });
@@ -46,6 +47,7 @@ export async function uploadCompanyLogoApi(file: File): Promise<{ logoUrl: strin
 export async function removeCompanyLogoApi(): Promise<CompanyProfile> {
   const res = await fetch(`${API_BASE_URL}/api/company/logo`, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to remove logo');
@@ -57,10 +59,10 @@ export async function removeCompanyLogoApi(): Promise<CompanyProfile> {
 export async function addCompanyServiceApi(data: { name: string; description: string }): Promise<CompanyServiceItem> {
   const res = await fetch(`${API_BASE_URL}/api/company/services`, {
     method: 'POST',
-    headers: {
+    headers: getAuthHeaders({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-    },
+    }),
     credentials: 'include',
     body: JSON.stringify(data),
   });
@@ -72,10 +74,10 @@ export async function addCompanyServiceApi(data: { name: string; description: st
 export async function updateCompanyServiceApi(id: string, data: Partial<CompanyServiceItem>): Promise<CompanyServiceItem> {
   const res = await fetch(`${API_BASE_URL}/api/company/services/${id}`, {
     method: 'PUT',
-    headers: {
+    headers: getAuthHeaders({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-    },
+    }),
     credentials: 'include',
     body: JSON.stringify(data),
   });
@@ -87,6 +89,7 @@ export async function updateCompanyServiceApi(id: string, data: Partial<CompanyS
 export async function deleteCompanyServiceApi(id: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/company/services/${id}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to delete service');
