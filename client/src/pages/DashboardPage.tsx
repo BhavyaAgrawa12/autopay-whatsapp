@@ -45,7 +45,7 @@ export const DashboardPage: React.FC = () => {
     <div>
       <PageHeader
         title="System Overview"
-        description="IT Company WhatsApp Promotional Campaign Management Foundation"
+        description="Autopay Tech WhatsApp Marketing Platform"
         badge={<Badge variant="info">Phase 1 Foundation</Badge>}
         actions={
           <Button variant="outline" size="sm" onClick={loadHealth} leftIcon={<Activity className="w-4 h-4" />}>

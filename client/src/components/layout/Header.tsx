@@ -36,7 +36,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu, isMobileMenu
             <span className="font-extrabold text-white text-base">WA</span>
           </div>
           <div>
-            <h2 className="text-sm font-bold text-slate-100 tracking-wide">IT Company Promotions</h2>
+            <h2 className="text-sm font-bold text-slate-100 tracking-wide">Autopay Tech</h2>
             <p className="text-[11px] text-slate-400 font-medium">WhatsApp Campaign Manager</p>
           </div>
         </div>

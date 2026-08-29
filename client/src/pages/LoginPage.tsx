@@ -79,7 +79,7 @@ export const LoginPage: React.FC = () => {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-500 shadow-xl shadow-emerald-950/60 mb-4">
             <ShieldCheck className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-2xl font-extrabold text-white tracking-tight">IT Company Admin</h1>
+          <h1 className="text-2xl font-extrabold text-white tracking-tight">Autopay Tech Admin</h1>
           <p className="text-xs text-slate-400 mt-1">WhatsApp Promotional Campaign Manager</p>
         </div>
 
