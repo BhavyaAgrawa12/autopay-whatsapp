@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 import mongoose from 'mongoose';
 import { env } from '../config/env.js';
@@ -169,6 +170,9 @@ export class CampaignSendingService {
       }
 
       const fullPath = path.join(ASSETS_MEDIA_DIR, asset.storedFilename);
+      if (!fs.existsSync(fullPath)) {
+        throw new ValidationError(`The media file '${asset.originalFilename}' is missing on server storage. Please go to Company -> Media Assets, re-upload the image, and re-select it in your campaign.`);
+      }
       logger.info('[CampaignEngine] Uploading media asset to Meta Cloud API once', { assetId: asset.assetId });
       mediaId = await WhatsAppService.uploadMedia(fullPath, asset.mimeType);
     }

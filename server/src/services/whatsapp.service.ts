@@ -268,7 +268,8 @@ export class WhatsAppService {
     }
 
     if (!fs.existsSync(filePath)) {
-      throw new ValidationError(`Media file not found at path: ${filePath}`);
+      const filename = path.basename(filePath);
+      throw new ValidationError(`The media file '${filename}' is missing from server storage. Please go to Company -> Media Assets, re-upload the image, and re-select it in your campaign.`);
     }
 
     const fileBuffer = fs.readFileSync(filePath);
