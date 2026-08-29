@@ -18,7 +18,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
-import { LoadingSpinner } from '../components/ui/LoadingSpinner';
+import { SkeletonLoader } from '../components/ui/SkeletonLoader';
 import { ErrorAlert } from '../components/ui/ErrorAlert';
 import { EmptyState } from '../components/ui/EmptyState';
 import { CompanyAssetRecord, AssetCategory } from '../types/company';
@@ -93,16 +93,21 @@ export const CompanyAssetsPage: React.FC = () => {
     }
   };
 
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+
   const handleRenameSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!renameAsset || !newFilename.trim()) return;
-
+    setIsRenaming(true);
     try {
       await renameAssetApi(renameAsset.id, newFilename);
       setRenameAsset(null);
       await loadAssets();
     } catch (err: any) {
       setError(err.message || 'Failed to rename asset.');
+    } finally {
+      setIsRenaming(false);
     }
   };
 
@@ -126,6 +131,7 @@ export const CompanyAssetsPage: React.FC = () => {
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
+    setIsDeleting(true);
     try {
       await deleteAssetApi(deleteTarget.id);
       setDeleteTarget(null);
@@ -133,6 +139,8 @@ export const CompanyAssetsPage: React.FC = () => {
       await loadAssets();
     } catch (err: any) {
       setError(err.message || 'Failed to delete asset.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -258,7 +266,7 @@ export const CompanyAssetsPage: React.FC = () => {
 
       {/* Asset Grid */}
       {loading ? (
-        <LoadingSpinner label="Loading asset repository..." />
+        <SkeletonLoader count={8} type="grid" />
       ) : assets.length === 0 ? (
         <EmptyState
           icon={FolderArchive}
@@ -479,10 +487,10 @@ export const CompanyAssetsPage: React.FC = () => {
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="ghost" size="sm" onClick={() => setRenameAsset(null)}>
+                <Button variant="ghost" size="sm" onClick={() => setRenameAsset(null)} disabled={isRenaming}>
                   Cancel
                 </Button>
-                <Button type="submit" variant="primary" size="sm">
+                <Button type="submit" variant="primary" size="sm" isLoading={isRenaming}>
                   Save Filename
                 </Button>
               </div>
@@ -500,11 +508,11 @@ export const CompanyAssetsPage: React.FC = () => {
               Are you sure you want to delete <strong className="text-white">"{deleteTarget.originalFilename}"</strong>? This will permanently remove the physical file from server storage.
             </p>
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(null)}>
+              <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(null)} disabled={isDeleting}>
                 Cancel
               </Button>
-              <Button variant="danger" size="sm" onClick={handleDeleteConfirm}>
-                Delete Asset
+              <Button variant="danger" size="sm" onClick={handleDeleteConfirm} isLoading={isDeleting}>
+                {isDeleting ? 'Deleting Asset...' : 'Delete Asset'}
               </Button>
             </div>
           </div>

@@ -24,11 +24,7 @@ import {
 
 const router = Router();
 
-// Public media file serving endpoints (accessible by <img> tags, downloads, and WhatsApp API)
-router.get('/assets/:id/file', serveAssetFile);
-router.get('/assets/:id/download', downloadAssetFile);
-
-// Protect remaining management routes
+// Protect all company & asset management routes
 router.use(requireAuth);
 
 // Profile & Logo Endpoints
@@ -49,6 +45,9 @@ router.delete('/services/:id', deleteService);
 router.get('/assets', getAssets);
 router.post('/assets', uploadAssetMiddleware.single('file'), uploadAsset);
 router.post('/assets/:id/file', uploadAssetMiddleware.single('file'), reuploadAssetFile);
+router.get('/assets/:id', serveAssetFile);
+router.get('/assets/:id/file', serveAssetFile);
+router.get('/assets/:id/download', downloadAssetFile);
 router.put('/assets/:id', renameAsset);
 router.delete('/assets/:id', deleteAsset);
 
