@@ -73,6 +73,8 @@ export const AppRoutes: React.FC = () => {
         <Route path="company-assets" element={<CompanyAssetsPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="privacy" element={<PrivacyPolicyPage />} />
+        <Route path="privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
 
