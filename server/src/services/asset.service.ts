@@ -40,13 +40,19 @@ export class AssetService {
     else if (sortMode === 'name') sortOptions = { originalFilename: 1 };
     else if (sortMode === 'size') sortOptions = { fileSize: -1 };
 
-    return CompanyAsset.find(filterQuery).sort(sortOptions);
+    return CompanyAsset.find(filterQuery).select('-fileBuffer').sort(sortOptions);
   }
 
-  public static async getAssetById(assetId: string): Promise<ICompanyAsset> {
-    let asset = await CompanyAsset.findOne({ assetId });
+  public static async getAssetById(assetId: string, includeBuffer = false): Promise<ICompanyAsset> {
+    let query = CompanyAsset.findOne({ assetId });
+    if (!includeBuffer) {
+      query = query.select('-fileBuffer');
+    }
+    let asset = await query.exec();
     if (!asset && mongoose.Types.ObjectId.isValid(assetId)) {
-      asset = await CompanyAsset.findById(assetId);
+      let idQuery = CompanyAsset.findById(assetId);
+      if (!includeBuffer) idQuery = idQuery.select('-fileBuffer');
+      asset = await idQuery.exec();
     }
     if (!asset) {
       throw new NotFoundError(`Asset with ID '${assetId}' not found`);
@@ -165,7 +171,7 @@ export class AssetService {
   }
 
   public static async getPhysicalFilePath(assetId: string): Promise<{ fullPath: string; asset: ICompanyAsset; isMissing: boolean; buffer?: Buffer }> {
-    const asset = await AssetService.getAssetById(assetId);
+    const asset = await AssetService.getAssetById(assetId, true);
     const fullPath = path.join(ASSETS_MEDIA_DIR, asset.storedFilename);
 
     if (!fullPath.startsWith(ASSETS_MEDIA_DIR)) {
