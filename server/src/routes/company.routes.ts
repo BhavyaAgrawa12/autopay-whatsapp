@@ -6,6 +6,8 @@ import {
   updateCompanyProfile,
   uploadCompanyLogo,
   removeCompanyLogo,
+  uploadCompanyFavicon,
+  removeCompanyFavicon,
   addService,
   updateService,
   deleteService,
@@ -29,6 +31,8 @@ router.get('/', getCompanyProfile);
 router.put('/', updateCompanyProfile);
 router.post('/logo', uploadLogoMiddleware.single('logo'), uploadCompanyLogo);
 router.delete('/logo', removeCompanyLogo);
+router.post('/favicon', uploadLogoMiddleware.single('favicon'), uploadCompanyFavicon);
+router.delete('/favicon', removeCompanyFavicon);
 
 // Services Endpoints
 router.get('/services', getCompanyProfile);

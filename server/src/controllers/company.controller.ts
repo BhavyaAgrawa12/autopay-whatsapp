@@ -94,6 +94,42 @@ export async function removeCompanyLogo(_req: Request, res: Response, next: Next
   }
 }
 
+export async function uploadCompanyFavicon(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const file = req.file;
+    if (!file) throw new ValidationError('No favicon image uploaded');
+
+    let profile = await CompanyProfile.findOne();
+    if (!profile) profile = new CompanyProfile();
+
+    profile.faviconUrl = `/storage/company/logo/${file.filename}`;
+    await profile.save();
+
+    res.status(200).json({
+      success: true,
+      data: { faviconUrl: profile.faviconUrl, profile },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function removeCompanyFavicon(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    let profile = await CompanyProfile.findOne();
+    if (profile) {
+      profile.faviconUrl = undefined;
+      await profile.save();
+    }
+    res.status(200).json({
+      success: true,
+      data: profile,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function addService(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { name, description } = req.body;

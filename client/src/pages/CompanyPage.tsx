@@ -31,10 +31,13 @@ import {
   updateCompanyProfileApi,
   uploadCompanyLogoApi,
   removeCompanyLogoApi,
+  uploadCompanyFaviconApi,
+  removeCompanyFaviconApi,
   addCompanyServiceApi,
   updateCompanyServiceApi,
   deleteCompanyServiceApi,
 } from '../api/company';
+import { API_BASE_URL } from '../api/config';
 
 export const CompanyPage: React.FC = () => {
   const [profile, setProfile] = useState<CompanyProfile | null>(null);
@@ -148,6 +151,45 @@ export const CompanyPage: React.FC = () => {
       setTimeout(() => setSuccessMessage(null), 4000);
     } catch (err: any) {
       setError(err.message || 'Failed to remove logo.');
+    }
+  };
+
+  const updateFaviconDOM = (url?: string) => {
+    let link = document.querySelector<HTMLLinkElement>("link[rel*='icon']");
+    if (!link) {
+      link = document.createElement('link');
+      link.rel = 'icon';
+      document.getElementsByTagName('head')[0].appendChild(link);
+    }
+    link.href = url ? (url.startsWith('http') ? url : `${API_BASE_URL}${url}`) : '/vite.svg';
+  };
+
+  const handleFaviconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.[0]) return;
+    const file = e.target.files[0];
+    setError(null);
+
+    try {
+      const res = await uploadCompanyFaviconApi(file);
+      setProfile(res.profile);
+      updateFaviconDOM(res.faviconUrl);
+      setSuccessMessage('Favicon uploaded & updated successfully.');
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to upload favicon.');
+    }
+  };
+
+  const handleFaviconRemove = async () => {
+    setError(null);
+    try {
+      const updated = await removeCompanyFaviconApi();
+      setProfile(updated);
+      updateFaviconDOM(undefined);
+      setSuccessMessage('Favicon removed.');
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to remove favicon.');
     }
   };
 
@@ -354,50 +396,97 @@ export const CompanyPage: React.FC = () => {
           </form>
         </Card>
 
-        {/* Company Logo Card */}
-        <Card variant="glass" className="border-emerald-800/40 space-y-4">
-          <div className="flex items-center gap-2 pb-3 border-b border-slate-800 text-white font-bold text-sm">
-            <ShieldCheck className="w-5 h-5 text-emerald-400" />
-            Official Company Logo
+        {/* Company Logo & Favicon Card */}
+        <Card variant="glass" className="border-emerald-800/40 space-y-6">
+          {/* Logo Section */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-800 text-white font-bold text-sm">
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+              Official Company Logo
+            </div>
+
+            <div className="flex flex-col items-center justify-center p-4 bg-slate-950/60 rounded-xl border border-slate-800 text-center">
+              {profile?.logoUrl ? (
+                <div className="relative group mb-3">
+                  <img
+                    src={profile.logoUrl.startsWith('http') ? profile.logoUrl : `${API_BASE_URL}${profile.logoUrl}`}
+                    alt="Company Logo"
+                    className="w-24 h-24 object-contain rounded-xl bg-slate-900 border border-slate-700 p-2 shadow-lg"
+                  />
+                </div>
+              ) : (
+                <div className="w-24 h-24 rounded-xl bg-slate-900 border border-dashed border-slate-700 flex flex-col items-center justify-center text-slate-500 mb-3">
+                  <Building2 className="w-8 h-8 mb-1" />
+                  <span className="text-[10px]">No Logo Set</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <label className="cursor-pointer">
+                  <Button variant="outline" size="sm" leftIcon={<Upload className="w-3.5 h-3.5" />}>
+                    {profile?.logoUrl ? 'Replace Logo' : 'Upload Logo'}
+                  </Button>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                  />
+                </label>
+                {profile?.logoUrl && (
+                  <Button variant="danger" size="sm" onClick={handleLogoRemove} leftIcon={<Trash2 className="w-3.5 h-3.5" />}>
+                    Remove
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-col items-center justify-center p-6 bg-slate-950/60 rounded-xl border border-slate-800 text-center">
-            {profile?.logoUrl ? (
-              <div className="relative group mb-4">
-                <img
-                  src={profile.logoUrl}
-                  alt="Company Logo"
-                  className="w-32 h-32 object-contain rounded-xl bg-slate-900 border border-slate-700 p-2 shadow-lg"
-                />
-              </div>
-            ) : (
-              <div className="w-32 h-32 rounded-xl bg-slate-900 border border-dashed border-slate-700 flex flex-col items-center justify-center text-slate-500 mb-4">
-                <Building2 className="w-10 h-10 mb-1" />
-                <span className="text-[11px]">No Logo Set</span>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2">
-              <label className="cursor-pointer">
-                <Button variant="outline" size="sm" leftIcon={<Upload className="w-4 h-4" />}>
-                  {profile?.logoUrl ? 'Replace Logo' : 'Upload Logo'}
-                </Button>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/svg+xml"
-                  className="hidden"
-                  onChange={handleLogoUpload}
-                />
-              </label>
-              {profile?.logoUrl && (
-                <Button variant="danger" size="sm" onClick={handleLogoRemove} leftIcon={<Trash2 className="w-4 h-4" />}>
-                  Remove
-                </Button>
-              )}
+          {/* Favicon Section */}
+          <div className="space-y-3 pt-3 border-t border-slate-800">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-800 text-white font-bold text-sm">
+              <Globe className="w-5 h-5 text-sky-400" />
+              Browser Favicon
             </div>
-            <p className="text-[11px] text-slate-500 mt-3">
-              Supported: JPG, PNG, WEBP, SVG (Max 10MB)
-            </p>
+
+            <div className="flex flex-col items-center justify-center p-4 bg-slate-950/60 rounded-xl border border-slate-800 text-center">
+              {profile?.faviconUrl ? (
+                <div className="relative group mb-3">
+                  <img
+                    src={profile.faviconUrl.startsWith('http') ? profile.faviconUrl : `${API_BASE_URL}${profile.faviconUrl}`}
+                    alt="Browser Favicon"
+                    className="w-16 h-16 object-contain rounded-lg bg-slate-900 border border-slate-700 p-2 shadow-lg"
+                  />
+                </div>
+              ) : (
+                <div className="w-16 h-16 rounded-lg bg-slate-900 border border-dashed border-slate-700 flex flex-col items-center justify-center text-slate-500 mb-3">
+                  <Globe className="w-6 h-6 mb-1 text-slate-600" />
+                  <span className="text-[9px]">Default Favicon</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <label className="cursor-pointer">
+                  <Button variant="outline" size="sm" leftIcon={<Upload className="w-3.5 h-3.5" />}>
+                    {profile?.faviconUrl ? 'Replace Favicon' : 'Upload Favicon'}
+                  </Button>
+                  <input
+                    type="file"
+                    accept="image/png,image/x-icon,image/svg+xml,image/jpeg"
+                    className="hidden"
+                    onChange={handleFaviconUpload}
+                  />
+                </label>
+                {profile?.faviconUrl && (
+                  <Button variant="danger" size="sm" onClick={handleFaviconRemove} leftIcon={<Trash2 className="w-3.5 h-3.5" />}>
+                    Remove
+                  </Button>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-500 mt-2">
+                Updates browser tab icon in real-time (.png, .ico, .svg)
+              </p>
+            </div>
           </div>
         </Card>
       </div>

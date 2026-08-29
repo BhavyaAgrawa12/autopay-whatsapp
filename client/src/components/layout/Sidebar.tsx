@@ -10,7 +10,7 @@ import {
   FolderArchive,
   BarChart3,
   Settings,
-  HelpCircle,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -76,10 +76,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onCloseMobile }) => {
         {/* Sidebar Footer */}
         <div className="p-4 border-t border-slate-800/80 bg-slate-950/30">
           <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-400">
-            <HelpCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
             <div>
-              <span className="font-semibold text-slate-200 block">Single Account Mode</span>
-              <span className="text-[11px] text-slate-500">Phase 1 Foundation</span>
+              <span className="font-semibold text-slate-200 block">Autopay Tech Platform</span>
+              <span className="text-[11px] text-slate-500">Official Production Cloud</span>
             </div>
           </div>
         </div>

@@ -8,6 +8,7 @@ export interface ICompanyProfile extends Document {
   email?: string;
   address?: string;
   logoUrl?: string;
+  faviconUrl?: string;
   socialLinks?: Record<string, string>;
   services?: Array<{
     id: string;
@@ -30,6 +31,7 @@ const CompanyProfileSchema = new Schema<ICompanyProfile>(
     email: { type: String, default: '' },
     address: { type: String, default: '' },
     logoUrl: { type: String },
+    faviconUrl: { type: String },
     socialLinks: { type: Schema.Types.Mixed, default: {} },
     services: { type: Schema.Types.Mixed, default: [] },
   },

@@ -46,7 +46,7 @@ export const DashboardPage: React.FC = () => {
       <PageHeader
         title="System Overview"
         description="Autopay Tech WhatsApp Marketing Platform"
-        badge={<Badge variant="info">Phase 1 Foundation</Badge>}
+        badge={<Badge variant="success">Live Production</Badge>}
         actions={
           <Button variant="outline" size="sm" onClick={loadHealth} leftIcon={<Activity className="w-4 h-4" />}>
             Check Backend Status

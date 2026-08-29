@@ -55,6 +55,35 @@ export async function removeCompanyLogoApi(): Promise<CompanyProfile> {
   return json.data;
 }
 
+export async function uploadCompanyFaviconApi(file: File): Promise<{ faviconUrl: string; profile: CompanyProfile }> {
+  const formData = new FormData();
+  formData.append('favicon', file);
+
+  const res = await fetch(`${API_BASE_URL}/api/company/favicon`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+    body: formData,
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error?.message || 'Failed to upload favicon');
+  }
+  const json = await res.json();
+  return json.data;
+}
+
+export async function removeCompanyFaviconApi(): Promise<CompanyProfile> {
+  const res = await fetch(`${API_BASE_URL}/api/company/favicon`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('Failed to remove favicon');
+  const json = await res.json();
+  return json.data;
+}
+
 // Services API
 export async function addCompanyServiceApi(data: { name: string; description: string }): Promise<CompanyServiceItem> {
   const res = await fetch(`${API_BASE_URL}/api/company/services`, {

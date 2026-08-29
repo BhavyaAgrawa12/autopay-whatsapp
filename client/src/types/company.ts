@@ -17,6 +17,7 @@ export interface CompanyProfile {
   email: string;
   address: string;
   logoUrl?: string;
+  faviconUrl?: string;
   socialLinks: {
     linkedin?: string;
     twitter?: string;
