@@ -61,16 +61,30 @@ export class AssetService {
 
     const ext = path.extname(file.originalname).toLowerCase();
     const category = AssetService.determineCategory(ext, file.mimetype);
+    const sanitized = sanitizeFilename(file.originalname);
+    const storedFilename = `${Date.now()}-${Math.round(Math.random() * 1e6)}-${sanitized}`;
+    const fullPath = path.join(ASSETS_MEDIA_DIR, storedFilename);
+
+    // Save to local disk if possible
+    try {
+      if (!fs.existsSync(ASSETS_MEDIA_DIR)) {
+        fs.mkdirSync(ASSETS_MEDIA_DIR, { recursive: true });
+      }
+      fs.writeFileSync(fullPath, file.buffer);
+    } catch (e) {
+      console.warn('Could not write asset file to local disk:', e);
+    }
 
     const newAsset = new CompanyAsset({
       assetId: `asset-${Date.now()}-${Math.round(Math.random() * 1000)}`,
-      originalFilename: sanitizeFilename(file.originalname),
-      storedFilename: file.filename,
+      originalFilename: sanitized,
+      storedFilename,
       mimeType: file.mimetype,
       category,
       fileSize: file.size,
       description: description ? description.trim() : undefined,
-      relativePath: `/storage/company/assets/${file.filename}`,
+      relativePath: `/storage/company/assets/${storedFilename}`,
+      fileBuffer: file.buffer,
     });
 
     await newAsset.save();
@@ -84,23 +98,36 @@ export class AssetService {
 
     const asset = await AssetService.getAssetById(assetId);
 
+    const ext = path.extname(file.originalname).toLowerCase();
+    const category = AssetService.determineCategory(ext, file.mimetype);
+    const sanitized = sanitizeFilename(file.originalname);
+    const storedFilename = `${Date.now()}-${Math.round(Math.random() * 1e6)}-${sanitized}`;
+    const fullPath = path.join(ASSETS_MEDIA_DIR, storedFilename);
+
+    // Remove old physical file if exists
     try {
       const oldPath = path.join(ASSETS_MEDIA_DIR, asset.storedFilename);
-      if (fs.existsSync(oldPath)) {
-        fs.unlinkSync(oldPath);
-      }
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
     } catch (e) {
       console.warn('Could not remove old physical file:', e);
     }
 
-    const ext = path.extname(file.originalname).toLowerCase();
-    const category = AssetService.determineCategory(ext, file.mimetype);
+    // Write new file to local disk
+    try {
+      if (!fs.existsSync(ASSETS_MEDIA_DIR)) {
+        fs.mkdirSync(ASSETS_MEDIA_DIR, { recursive: true });
+      }
+      fs.writeFileSync(fullPath, file.buffer);
+    } catch (e) {
+      console.warn('Could not write reuploaded file to local disk:', e);
+    }
 
-    asset.storedFilename = file.filename;
+    asset.storedFilename = storedFilename;
     asset.mimeType = file.mimetype;
     asset.category = category;
     asset.fileSize = file.size;
-    asset.relativePath = `/storage/company/assets/${file.filename}`;
+    asset.relativePath = `/storage/company/assets/${storedFilename}`;
+    asset.fileBuffer = file.buffer;
 
     await asset.save();
     return asset;
@@ -137,7 +164,7 @@ export class AssetService {
     await CompanyAsset.deleteOne({ _id: asset._id });
   }
 
-  public static async getPhysicalFilePath(assetId: string): Promise<{ fullPath: string; asset: ICompanyAsset; isMissing: boolean }> {
+  public static async getPhysicalFilePath(assetId: string): Promise<{ fullPath: string; asset: ICompanyAsset; isMissing: boolean; buffer?: Buffer }> {
     const asset = await AssetService.getAssetById(assetId);
     const fullPath = path.join(ASSETS_MEDIA_DIR, asset.storedFilename);
 
@@ -145,7 +172,21 @@ export class AssetService {
       throw new ValidationError('Invalid path traversal detected');
     }
 
-    const isMissing = !fs.existsSync(fullPath);
-    return { fullPath, asset, isMissing };
+    let isMissing = !fs.existsSync(fullPath);
+
+    // Recreate physical file from MongoDB buffer if disk was wiped (e.g. Render restart)
+    if (isMissing && asset.fileBuffer) {
+      try {
+        if (!fs.existsSync(ASSETS_MEDIA_DIR)) {
+          fs.mkdirSync(ASSETS_MEDIA_DIR, { recursive: true });
+        }
+        fs.writeFileSync(fullPath, asset.fileBuffer);
+        isMissing = false;
+      } catch (e) {
+        console.warn('Could not recreate file on disk from MongoDB buffer:', e);
+      }
+    }
+
+    return { fullPath, asset, isMissing, buffer: asset.fileBuffer };
   }
 }

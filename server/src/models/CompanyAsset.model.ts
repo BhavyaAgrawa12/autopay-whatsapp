@@ -11,6 +11,7 @@ export interface ICompanyAsset extends Document {
   fileSize: number;
   description?: string;
   relativePath: string;
+  fileBuffer?: Buffer;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,6 +31,7 @@ const CompanyAssetSchema = new Schema<ICompanyAsset>(
     fileSize: { type: Number, required: true },
     description: { type: String },
     relativePath: { type: String, required: true },
+    fileBuffer: { type: Buffer },
   },
   {
     timestamps: true,

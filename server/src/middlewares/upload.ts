@@ -43,26 +43,8 @@ const DISALLOWED_EXTENSIONS = new Set([
   '.exe', '.sh', '.bat', '.cmd', '.js', '.py', '.php', '.pl', '.vbs', '.jar', '.com',
 ]);
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, ASSETS_MEDIA_DIR);
-  },
-  filename: (_req, file, cb) => {
-    const sanitized = sanitizeFilename(file.originalname);
-    const uniquePrefix = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-    cb(null, `${uniquePrefix}-${sanitized}`);
-  },
-});
-
-const logoStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, LOGO_MEDIA_DIR);
-  },
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `company-logo${ext}`);
-  },
-});
+const storage = multer.memoryStorage();
+const logoStorage = multer.memoryStorage();
 
 const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const ext = path.extname(file.originalname).toLowerCase();

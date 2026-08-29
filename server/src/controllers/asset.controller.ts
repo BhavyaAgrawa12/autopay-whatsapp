@@ -35,27 +35,33 @@ export async function uploadAsset(req: Request, res: Response, next: NextFunctio
 export async function serveAssetFile(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { id } = req.params;
-    const { fullPath, asset, isMissing } = await AssetService.getPhysicalFilePath(id);
+    const { fullPath, asset, isMissing, buffer } = await AssetService.getPhysicalFilePath(id);
 
-    if (isMissing) {
-      const svgPlaceholder = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
-          <rect width="100%" height="100%" fill="#090d16"/>
-          <rect x="20" y="20" width="360" height="260" rx="16" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
-          <circle cx="200" cy="110" r="32" fill="#334155" opacity="0.5"/>
-          <path d="M188 98L212 122M212 98L188 122" stroke="#f43f5e" stroke-width="4" stroke-linecap="round"/>
-          <text x="200" y="175" fill="#f87171" font-family="sans-serif" font-size="13" font-weight="bold" text-anchor="middle">File Missing on Server Disk</text>
-          <text x="200" y="200" fill="#94a3b8" font-family="sans-serif" font-size="11" text-anchor="middle">Click 'Re-upload' on asset card to restore</text>
-        </svg>
-      `;
-      res.setHeader('Content-Type', 'image/svg+xml');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.status(200).send(svgPlaceholder);
+    if (!isMissing) {
+      res.setHeader('Content-Type', asset.mimeType);
+      res.sendFile(fullPath);
       return;
     }
 
-    res.setHeader('Content-Type', asset.mimeType);
-    res.sendFile(fullPath);
+    if (buffer) {
+      res.setHeader('Content-Type', asset.mimeType);
+      res.status(200).send(buffer);
+      return;
+    }
+
+    const svgPlaceholder = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+        <rect width="100%" height="100%" fill="#090d16"/>
+        <rect x="20" y="20" width="360" height="260" rx="16" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+        <circle cx="200" cy="110" r="32" fill="#334155" opacity="0.5"/>
+        <path d="M188 98L212 122M212 98L188 122" stroke="#f43f5e" stroke-width="4" stroke-linecap="round"/>
+        <text x="200" y="175" fill="#f87171" font-family="sans-serif" font-size="13" font-weight="bold" text-anchor="middle">File Missing on Server Disk</text>
+        <text x="200" y="200" fill="#94a3b8" font-family="sans-serif" font-size="11" text-anchor="middle">Click 'Re-upload' on asset card to restore</text>
+      </svg>
+    `;
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.status(200).send(svgPlaceholder);
   } catch (error) {
     next(error);
   }
