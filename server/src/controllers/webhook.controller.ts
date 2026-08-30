@@ -43,6 +43,8 @@ function verifyWebhookSignature(req: Request): boolean {
     const matched = crypto.timingSafeEqual(Buffer.from(expectedSignature, 'hex'), Buffer.from(calculatedSignature, 'hex'));
     if (!matched) {
       logger.warn('[WhatsApp Webhook] HMAC signature verification failed');
+    } else {
+      logger.info('[WhatsApp Webhook] HMAC signature verification passed');
     }
     return matched;
   } catch (e) {
@@ -100,6 +102,22 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
 
         const value = change.value;
         const statuses = value.statuses || [];
+        const messages = value.messages || [];
+
+        // Safe temporary diagnostic logging for REAL incoming message events
+        for (const msg of messages) {
+          const senderPhone = String(msg.from || '');
+          const msgId = String(msg.id || '');
+          const msgType = String(msg.type || 'unknown');
+
+          logger.info('[WhatsApp Webhook] Real incoming message event received', {
+            eventType: change.field,
+            messageType: msgType,
+            senderPhoneSuffix: senderPhone.length >= 4 ? senderPhone.slice(-4) : senderPhone,
+            messageIdSuffix: msgId.length >= 8 ? msgId.slice(-8) : msgId,
+            received: true,
+          });
+        }
 
         for (const statusItem of statuses) {
           const rawMessageId = statusItem.id || '';
