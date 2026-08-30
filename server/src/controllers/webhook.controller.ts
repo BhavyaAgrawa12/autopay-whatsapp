@@ -4,6 +4,7 @@ import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { CampaignRecipient, RecipientSendStatus } from '../models/CampaignRecipient.model.js';
 import { MessageEvent, MessageEventStatus } from '../models/MessageEvent.model.js';
+import { InboxService } from '../services/inbox.service.js';
 
 // Status hierarchy rank for non-downgrading status precedence
 const STATUS_RANK: Record<string, number> = {
@@ -104,11 +105,15 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
         const statuses = value.statuses || [];
         const messages = value.messages || [];
 
-        // Safe temporary diagnostic logging for REAL incoming message events
+        // Process REAL incoming message events for Two-Way Inbox
         for (const msg of messages) {
           const senderPhone = String(msg.from || '');
           const msgId = String(msg.id || '');
           const msgType = String(msg.type || 'unknown');
+          const timestampSec = msg.timestamp ? parseInt(msg.timestamp, 10) : Math.floor(Date.now() / 1000);
+          const textBody = msg.text?.body || msg.caption || '';
+          const mediaId = msg.image?.id || msg.video?.id || msg.audio?.id || msg.document?.id || msg.sticker?.id || '';
+          const businessPhone = value.metadata?.display_phone_number || '';
 
           logger.info('[WhatsApp Webhook] Real incoming message event received', {
             eventType: change.field,
@@ -117,6 +122,20 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
             messageIdSuffix: msgId.length >= 8 ? msgId.slice(-8) : msgId,
             received: true,
           });
+
+          try {
+            await InboxService.processInboundWebhookMessage({
+              wamid: msgId,
+              senderPhone,
+              timestampSec,
+              type: msgType,
+              textBody,
+              mediaId,
+              businessPhone,
+            });
+          } catch (err: any) {
+            logger.error('[WhatsApp Webhook] Failed processing inbound Inbox message', { error: err.message });
+          }
         }
 
         for (const statusItem of statuses) {
@@ -128,6 +147,19 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
 
           if (!messageId || !['SENT', 'DELIVERED', 'READ', 'FAILED'].includes(statusStr)) {
             continue; // Skip invalid status fields safely
+          }
+
+          // 1. Process status for Inbox Messages
+          try {
+            await InboxService.processStatusWebhookMessage({
+              wamid: messageId,
+              statusStr,
+              timestampSec,
+              errorCode: Array.isArray(statusItem.errors) && statusItem.errors.length > 0 ? statusItem.errors[0].code : undefined,
+              errorMessage: Array.isArray(statusItem.errors) && statusItem.errors.length > 0 ? (statusItem.errors[0].title || statusItem.errors[0].message) : undefined,
+            });
+          } catch (err: any) {
+            logger.error('[WhatsApp Webhook] Failed updating Inbox message status', { error: err.message });
           }
 
           const targetStatus = statusStr as MessageEventStatus;

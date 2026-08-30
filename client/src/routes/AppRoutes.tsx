@@ -5,6 +5,7 @@ import { ProtectedRoute } from '../components/routes/ProtectedRoute';
 import { useAuth } from '../context/AuthContext';
 import { LoginPage } from '../pages/LoginPage';
 import { DashboardPage } from '../pages/DashboardPage';
+import { InboxPage } from '../pages/InboxPage';
 import { ContactsPage } from '../pages/ContactsPage';
 import { ContactListsPage } from '../pages/ContactListsPage';
 import { CampaignsPage } from '../pages/CampaignsPage';
@@ -63,6 +64,7 @@ export const AppRoutes: React.FC = () => {
       >
         <Route index element={<DashboardPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
+        <Route path="inbox" element={<InboxPage />} />
         <Route path="contacts" element={<ContactsPage />} />
         <Route path="contact-lists" element={<ContactListsPage />} />
         <Route path="campaigns" element={<CampaignsPage />} />

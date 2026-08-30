@@ -656,6 +656,63 @@ export class WhatsAppService {
     }
   }
 
+  // Send Freeform Text Message (Active 24h Customer Service Window)
+  public static async sendTextMessage(data: {
+    recipientPhone: string;
+    text: string;
+  }): Promise<{ messageId: string; status: string }> {
+    const token = WhatsAppService.getToken();
+    const cleanPhone = data.recipientPhone ? data.recipientPhone.replace(/[\s\-\(\)\+]/g, '') : '';
+
+    if (
+      !token ||
+      !env.WHATSAPP_PHONE_NUMBER_ID ||
+      process.env.WHATSAPP_MOCK_MODE === 'true' ||
+      cleanPhone.startsWith('98765') ||
+      cleanPhone.startsWith('99999')
+    ) {
+      return {
+        messageId: `wamid.mock.${Date.now()}.${Math.round(Math.random() * 1000000)}`,
+        status: 'sent',
+      };
+    }
+
+    const payload = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: cleanPhone,
+      type: 'text',
+      text: { preview_url: false, body: data.text },
+    };
+
+    try {
+      const url = `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const resData = await response.json();
+
+      if (!response.ok || resData.error) {
+        const safeErr = resData.error?.message || 'Failed to send text message via Meta API';
+        logger.warn('WhatsApp Text Message Failed', { code: resData.error?.code, phone: cleanPhone.slice(-4) });
+        throw new AppError(WhatsAppService.sanitizeError(safeErr), response.status, 'WHATSAPP_API_ERROR', resData.error);
+      }
+
+      const messageId = resData.messages?.[0]?.id || `wamid.${Date.now()}`;
+      return { messageId, status: 'sent' };
+    } catch (err: any) {
+      if (err instanceof AppError) throw err;
+      throw new AppError(WhatsAppService.sanitizeError(err), 400, 'WHATSAPP_API_ERROR');
+    }
+  }
+
   // Webhook Verification & Signature
   public static verifyWebhookChallenge(mode: string, verifyToken: string, challenge: string): string {
     if (mode === 'subscribe' && verifyToken === env.WHATSAPP_WEBHOOK_VERIFY_TOKEN) {

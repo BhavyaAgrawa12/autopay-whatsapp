@@ -7,6 +7,7 @@ import { webhookRoutes } from './webhook.routes.js';
 import { campaignRoutes } from './campaign.routes.js';
 import { contactRoutes } from './contact.routes.js';
 import { contactListRoutes } from './contactList.routes.js';
+import { inboxRoutes } from './inbox.routes.js';
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use('/webhooks', webhookRoutes);
 router.use('/campaigns', campaignRoutes);
 router.use('/contacts', contactRoutes);
 router.use('/contact-lists', contactListRoutes);
+router.use('/inbox', inboxRoutes);
 
 export const apiRouter = router;

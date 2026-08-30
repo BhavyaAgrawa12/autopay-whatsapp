@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
+  MessageSquare,
   Users,
   ListFilter,
   Send,
@@ -20,6 +21,7 @@ interface SidebarProps {
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/inbox', label: 'Inbox', icon: MessageSquare },
   { path: '/contacts', label: 'Contacts', icon: Users },
   { path: '/contact-lists', label: 'Contact Lists', icon: ListFilter },
   { path: '/campaigns', label: 'Campaigns', icon: Send },
