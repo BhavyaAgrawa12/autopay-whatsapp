@@ -51,7 +51,7 @@ export const CampaignStartModal: React.FC<CampaignStartModalProps> = ({
         templateLanguage: campaign.templateLanguage,
         headerConfig: campaign.headerConfig,
         variableMappings: campaign.variableMappings,
-        recipients: recipientContacts,
+        recipients: recipientContacts.length > 0 ? recipientContacts : undefined,
       });
 
       updateCampaignStatus(targetId, 'RUNNING');

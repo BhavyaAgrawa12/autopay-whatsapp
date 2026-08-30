@@ -84,7 +84,7 @@ export async function startCampaignApi(
     templateLanguage: string;
     headerConfig: any;
     variableMappings: any[];
-    recipients: any[];
+    recipients?: any[];
   }
 ): Promise<{ campaignId: string; status: string; totalJobs: number }> {
   const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/send`, {

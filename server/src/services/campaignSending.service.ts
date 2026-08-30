@@ -8,6 +8,7 @@ import { Contact } from '../models/Contact.model.js';
 import { CompanyAsset } from '../models/CompanyAsset.model.js';
 import { WhatsAppService } from './whatsapp.service.js';
 import { ASSETS_MEDIA_DIR } from '../utils/fileStorage.js';
+import { normalizePhoneNumber } from '../utils/phone.js';
 import { AppError, ValidationError, NotFoundError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
@@ -86,30 +87,46 @@ export class CampaignSendingService {
 
     if (overrideRecipients && overrideRecipients.length > 0) {
       const validOptedIn = overrideRecipients.filter(
-        (r) => r.marketingOptIn === 'OPTED_IN' || r.optInStatus === 'OPTED_IN'
+        (r) => r.marketingOptIn !== 'OPTED_OUT' && r.optInStatus !== 'OPTED_OUT'
       );
 
-      const phones = validOptedIn
-        .map((r) => r.phoneNormalized || r.phoneRaw || r.phone)
+      const targetObjectIds = validOptedIn
+        .map((r) => r._id || r.id)
+        .filter((id) => id && mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(id));
+
+      const targetNormalizedPhones = validOptedIn
+        .map((r) => normalizePhoneNumber(r.phoneNormalized || r.phoneRaw || r.phone))
         .filter(Boolean);
 
-      const existingContacts = await Contact.find({ phoneNormalized: { $in: phones } });
-      const existingMap = new Map(existingContacts.map((c) => [c.phoneNormalized, c]));
+      const existingContacts = await Contact.find({
+        $or: [
+          ...(targetObjectIds.length > 0 ? [{ _id: { $in: targetObjectIds } }] : []),
+          ...(targetNormalizedPhones.length > 0 ? [{ phoneNormalized: { $in: targetNormalizedPhones } }] : []),
+        ],
+      });
+
+      const existingIdSet = new Set(existingContacts.map((c) => c._id.toString()));
+      const existingPhoneMap = new Map(existingContacts.map((c) => [c.phoneNormalized, c]));
+
+      eligibleContacts = [...existingContacts];
 
       const newContactsToInsert: any[] = [];
       validOptedIn.forEach((r) => {
-        const normPhone = r.phoneNormalized || r.phoneRaw || r.phone;
-        if (!normPhone) return;
-        if (existingMap.has(normPhone)) {
-          eligibleContacts.push(existingMap.get(normPhone));
-        } else {
-          newContactsToInsert.push({
-            name: r.name || 'Test Recipient',
-            phoneRaw: normPhone,
-            phoneNormalized: normPhone,
-            marketingOptIn: 'OPTED_IN',
-          });
-        }
+        const idStr = r._id || r.id;
+        const rawPh = r.phoneRaw || r.phoneNormalized || r.phone;
+        const normPh = normalizePhoneNumber(rawPh);
+
+        if (!normPh) return;
+        if (idStr && existingIdSet.has(String(idStr))) return;
+        if (existingPhoneMap.has(normPh)) return;
+
+        newContactsToInsert.push({
+          name: r.name || 'Recipient Contact',
+          phoneRaw: rawPh || normPh,
+          phoneNormalized: normPh,
+          marketingOptIn: r.marketingOptIn || r.optInStatus || 'OPTED_IN',
+        });
       });
 
       const uniqueNewMap = new Map<string, any>();
@@ -131,24 +148,29 @@ export class CampaignSendingService {
         }
       }
     } else {
-      const selectedIds = campaign.audience?.selectedContactIds || [];
+      const selectedIdsRaw = campaign.audience?.selectedContactIds || [];
+      const selectedObjectIds = selectedIdsRaw
+        .filter((id: any) => id && (typeof id === 'string' || typeof id === 'object'))
+        .map((id: any) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id));
       const contactListId = campaign.audience?.contactListId;
 
-      if (selectedIds.length > 0) {
+      if (selectedObjectIds.length > 0) {
         eligibleContacts = await Contact.find({
-          _id: { $in: selectedIds },
-          marketingOptIn: 'OPTED_IN',
+          _id: { $in: selectedObjectIds },
+          marketingOptIn: { $ne: 'OPTED_OUT' },
         });
       } else if (contactListId) {
         const { ContactList } = require('../models/ContactList.model.js');
         const listDoc = await ContactList.findById(contactListId).lean();
-        const memberIds = listDoc?.contactIds || [];
+        const memberIds = (listDoc?.contactIds || []).map((id: any) =>
+          mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id
+        );
         eligibleContacts = await Contact.find({
           _id: { $in: memberIds },
-          marketingOptIn: 'OPTED_IN',
+          marketingOptIn: { $ne: 'OPTED_OUT' },
         });
       } else {
-        eligibleContacts = await Contact.find({ marketingOptIn: 'OPTED_IN' });
+        eligibleContacts = await Contact.find({ marketingOptIn: { $ne: 'OPTED_OUT' } });
       }
     }
 
