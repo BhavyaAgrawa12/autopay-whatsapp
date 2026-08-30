@@ -430,8 +430,23 @@ export class CampaignSendingService {
     } catch (err: any) {
       const safeErr = WhatsAppService.sanitizeError(err);
       const maxRetries = env.WHATSAPP_MAX_RETRIES || 3;
+      const errCodeStr = String(err.code || err.errorCode || '');
+      const is131049 =
+        errCodeStr === '131049' ||
+        errCodeStr === '131026' ||
+        safeErr.includes('healthy ecosystem engagement');
 
-      if (recipient.attempts < maxRetries && err.status !== 400) {
+      if (is131049) {
+        recipient.status = 'FAILED';
+        recipient.errorCode = '131049';
+        recipient.errorReason = 'This message was not delivered to maintain healthy ecosystem engagement.';
+        recipient.retryAfter = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 Hours Cooldown
+        await recipient.save();
+        logger.warn('[CampaignEngine] Recipient marketing limited by Meta (131049)', {
+          phoneSuffix: recipient.phone.slice(-4),
+          retryAfter: recipient.retryAfter,
+        });
+      } else if (recipient.attempts < maxRetries && err.status !== 400) {
         // Reset to QUEUED for transient retry after backoff
         recipient.status = 'QUEUED';
         await recipient.save();
@@ -443,5 +458,47 @@ export class CampaignSendingService {
         await recipient.save();
       }
     }
+  }
+
+  /**
+   * Manually retry failed recipients (enforcing 24h retryAfter cooldown for error 131049)
+   */
+  public static async retryFailedRecipients(campaignId: string): Promise<{ retriedCount: number; blockedCount: number }> {
+    const failedRecipients = await CampaignRecipient.find({ campaignId, status: 'FAILED' });
+    const now = new Date();
+
+    let retriedCount = 0;
+    let blockedCount = 0;
+
+    for (const recipient of failedRecipients) {
+      const is131049 =
+        recipient.errorCode === '131049' ||
+        recipient.errorCode === '131026' ||
+        (recipient.errorReason || '').includes('healthy ecosystem engagement');
+
+      if (is131049 || recipient.retryAfter) {
+        const canRetry = recipient.retryAfter ? recipient.retryAfter.getTime() <= now.getTime() : false;
+        if (!canRetry) {
+          blockedCount++;
+          continue;
+        }
+      }
+
+      recipient.status = 'QUEUED';
+      recipient.attempts = 0;
+      await recipient.save();
+      retriedCount++;
+    }
+
+    if (retriedCount > 0) {
+      const campaign = await Campaign.findOne({ campaignId });
+      if (campaign && campaign.status !== 'RUNNING') {
+        campaign.status = 'RUNNING';
+        await campaign.save();
+        CampaignSendingService.runBackgroundLoop(campaignId);
+      }
+    }
+
+    return { retriedCount, blockedCount };
   }
 }

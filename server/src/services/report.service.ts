@@ -175,7 +175,11 @@ export class ReportService {
         'Delivered At': r.deliveredAt ? new Date(r.deliveredAt).toLocaleString() : 'N/A',
         'Read At': r.readAt ? new Date(r.readAt).toLocaleString() : 'N/A',
         'Error Code': r.errorCode || 'N/A',
-        'Error Reason': r.errorReason || 'N/A',
+        'Error Reason':
+          r.errorCode === '131049' || r.errorCode === '131026' || (r.errorReason || '').includes('healthy ecosystem engagement')
+            ? 'Not delivered — Meta marketing delivery limit'
+            : r.errorReason || 'N/A',
+        'Retry Eligible At': r.retryAfter ? new Date(r.retryAfter).toLocaleString() : 'N/A',
         'Attempts': r.attempts || 0,
         ...customFields,
       };

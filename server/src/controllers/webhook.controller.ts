@@ -237,9 +237,19 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
           const targetRank = STATUS_RANK[targetStatus] || 0;
 
           if (targetStatus === 'FAILED') {
+            const errCodeStr = String(errorCode || 'META_DELIVERY_FAILURE');
+            const rawTitle = errorTitle || '';
+            const is131049 = errCodeStr === '131049' || errCodeStr === '131026' || rawTitle.includes('healthy ecosystem engagement');
+
             recipient.status = 'FAILED';
-            recipient.errorCode = String(errorCode || 'META_DELIVERY_FAILURE');
-            recipient.errorReason = errorTitle || 'Meta reported message delivery failure';
+            recipient.errorCode = is131049 ? '131049' : errCodeStr;
+            recipient.errorReason = is131049
+              ? 'This message was not delivered to maintain healthy ecosystem engagement.'
+              : rawTitle || 'Meta reported message delivery failure';
+
+            if (is131049) {
+              recipient.retryAfter = new Date(eventDate.getTime() + 24 * 60 * 60 * 1000);
+            }
           } else if (targetRank > currentRank && recipient.status !== 'FAILED') {
             recipient.status = targetStatus as RecipientSendStatus;
           }

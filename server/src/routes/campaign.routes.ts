@@ -8,6 +8,7 @@ import {
   pauseCampaign,
   resumeCampaign,
   cancelCampaign,
+  retryFailedRecipients,
   getCampaignProgress,
   getCampaignRecipients,
 } from '../controllers/campaign.controller.js';
@@ -32,6 +33,7 @@ router.post('/:campaignId/send', startCampaign);
 router.post('/:campaignId/pause', pauseCampaign);
 router.post('/:campaignId/resume', resumeCampaign);
 router.post('/:campaignId/cancel', cancelCampaign);
+router.post('/:campaignId/retry-failed', retryFailedRecipients);
 router.get('/:campaignId/progress', getCampaignProgress);
 router.get('/:campaignId/recipients', getCampaignRecipients);
 

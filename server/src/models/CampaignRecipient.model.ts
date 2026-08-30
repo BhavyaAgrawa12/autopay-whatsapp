@@ -13,6 +13,7 @@ export interface ICampaignRecipient extends Document {
   whatsappMessageId?: string;
   errorCode?: string;
   errorReason?: string;
+  retryAfter?: Date;
   sentAt?: Date;
   deliveredAt?: Date;
   readAt?: Date;
@@ -37,6 +38,7 @@ const CampaignRecipientSchema = new Schema<ICampaignRecipient>(
     whatsappMessageId: { type: String, index: true },
     errorCode: { type: String },
     errorReason: { type: String },
+    retryAfter: { type: Date },
     sentAt: { type: Date },
     deliveredAt: { type: Date },
     readAt: { type: Date },

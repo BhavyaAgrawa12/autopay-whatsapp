@@ -206,8 +206,17 @@ export const CampaignRecipientsModal: React.FC<CampaignRecipientsModalProps> = (
                       <td className="py-3 px-4">
                         {renderStatusBadge(r.status)}
                         {r.errorReason && (
-                          <span className="block text-[10px] text-rose-400 mt-0.5 max-w-xs truncate" title={r.errorReason}>
-                            {r.errorReason}
+                          <span
+                            className="block text-[10px] text-rose-400 mt-0.5 max-w-xs truncate"
+                            title={
+                              r.errorCode === '131049' || (r.errorReason || '').includes('healthy ecosystem engagement')
+                                ? 'Not delivered — Meta marketing delivery limit (24h cooldown)'
+                                : r.errorReason
+                            }
+                          >
+                            {r.errorCode === '131049' || (r.errorReason || '').includes('healthy ecosystem engagement')
+                              ? 'Not delivered — Meta marketing delivery limit'
+                              : r.errorReason}
                           </span>
                         )}
                       </td>

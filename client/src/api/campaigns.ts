@@ -25,6 +25,7 @@ export interface CampaignRecipientItem {
   readAt?: string;
   errorCode?: string;
   errorReason?: string;
+  retryAfter?: string;
   contactId?: {
     name?: string;
     phoneRaw?: string;
@@ -226,4 +227,17 @@ export async function downloadCampaignExcelApi(
   a.click();
   a.remove();
   window.URL.revokeObjectURL(url);
+}
+
+export async function retryFailedCampaignApi(
+  campaignId: string
+): Promise<{ retriedCount: number; blockedCount: number }> {
+  const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/retry-failed`, {
+    method: 'POST',
+    headers: getAuthHeaders({ Accept: 'application/json' }),
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('Failed to retry failed recipients');
+  const json = await res.json();
+  return json.data;
 }

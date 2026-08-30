@@ -131,6 +131,24 @@ export async function cancelCampaign(req: Request, res: Response, next: NextFunc
   }
 }
 
+export async function retryFailedRecipients(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { campaignId } = req.params;
+    const result = await CampaignSendingService.retryFailedRecipients(campaignId);
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: `Retried ${result.retriedCount} recipients.${
+        result.blockedCount > 0
+          ? ` ${result.blockedCount} recipients are blocked by Meta 24h marketing limit cooldown.`
+          : ''
+      }`,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 export async function getCampaignProgress(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { campaignId } = req.params;

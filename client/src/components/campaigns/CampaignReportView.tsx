@@ -16,6 +16,7 @@ import {
   fetchCampaignReportApi,
   fetchCampaignRecipientsApi,
   downloadCampaignExcelApi,
+  retryFailedCampaignApi,
   CampaignReportData,
   CampaignRecipientItem,
 } from '../../api/campaigns';
@@ -73,6 +74,29 @@ export const CampaignReportView: React.FC<CampaignReportViewProps> = ({ campaign
       setExportError(err.message || 'Unable to generate report. Please try again.');
     } finally {
       setExportingType(null);
+    }
+  };
+
+  const [retryNotice, setRetryNotice] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const handleRetryFailed = async () => {
+    setIsRetrying(true);
+    setRetryNotice(null);
+    try {
+      const res = await retryFailedCampaignApi(campaignId);
+      setRetryNotice(
+        `Retried ${res.retriedCount} recipients.${
+          res.blockedCount > 0
+            ? ` ${res.blockedCount} recipients are blocked by Meta 24h marketing limit cooldown.`
+            : ''
+        }`
+      );
+      loadReportAndRecipients();
+    } catch (err: any) {
+      setExportError(err.message || 'Failed to trigger retry');
+    } finally {
+      setIsRetrying(false);
     }
   };
 
@@ -134,17 +158,35 @@ export const CampaignReportView: React.FC<CampaignReportViewProps> = ({ campaign
             </div>
           )}
 
+          {retryNotice && (
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center justify-between">
+              <span>{retryNotice}</span>
+              <button onClick={() => setRetryNotice(null)} className="hover:text-white"><X className="w-4 h-4" /></button>
+            </div>
+          )}
+
           {/* Action Bar / Excel Download Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-slate-950 rounded-2xl border border-slate-800">
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                <span>Export Campaign Reports (Excel .xlsx)</span>
+                <span>Export Campaign Reports & Controls</span>
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Download full or filtered recipient datasets formatted for Excel</p>
+              <p className="text-xs text-slate-400 mt-0.5">Download recipient reports or trigger manual retries for eligible failed items</p>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Retry Failed Recipients */}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!m || m.failed === 0 || isRetrying}
+                onClick={handleRetryFailed}
+                leftIcon={<RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${isRetrying ? 'animate-spin' : ''}`} />}
+              >
+                {isRetrying ? 'Processing...' : 'Retry Failed'}
+              </Button>
+
               {/* Download Failed Excel */}
               <Button
                 variant="outline"
@@ -339,8 +381,17 @@ export const CampaignReportView: React.FC<CampaignReportViewProps> = ({ campaign
                       <td className="py-3 px-4 text-purple-400 font-mono text-[11px]">
                         {r.readAt ? new Date(r.readAt).toLocaleTimeString() : '-'}
                       </td>
-                      <td className="py-3 px-4 text-rose-400 max-w-xs truncate" title={r.errorReason || '-'}>
-                        {r.errorReason || '-'}
+                      <td
+                        className="py-3 px-4 text-rose-400 max-w-xs truncate"
+                        title={
+                          r.errorCode === '131049' || (r.errorReason || '').includes('healthy ecosystem engagement')
+                            ? 'Not delivered — Meta marketing delivery limit (24h cooldown)'
+                            : r.errorReason || '-'
+                        }
+                      >
+                        {r.errorCode === '131049' || (r.errorReason || '').includes('healthy ecosystem engagement')
+                          ? 'Not delivered — Meta marketing delivery limit'
+                          : r.errorReason || '-'}
                       </td>
                     </tr>
                   ))
