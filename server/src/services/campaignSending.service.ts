@@ -1,15 +1,15 @@
 import fs from 'fs';
 import path from 'path';
 import mongoose from 'mongoose';
-import { env } from '../config/env.js';
 import { Campaign, ICampaign, CampaignStatus } from '../models/Campaign.model.js';
-import { CampaignRecipient, ICampaignRecipient } from '../models/CampaignRecipient.model.js';
+import { CampaignRecipient } from '../models/CampaignRecipient.model.js';
 import { Contact } from '../models/Contact.model.js';
 import { CompanyAsset } from '../models/CompanyAsset.model.js';
 import { WhatsAppService } from './whatsapp.service.js';
+import { GlobalRateLimiterService } from './rateLimiter.service.js';
 import { ASSETS_MEDIA_DIR } from '../utils/fileStorage.js';
 import { normalizePhoneNumber } from '../utils/phone.js';
-import { AppError, ValidationError, NotFoundError } from '../utils/errors.js';
+import { ValidationError, NotFoundError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
 export interface CampaignProgressMetrics {
@@ -20,10 +20,22 @@ export interface CampaignProgressMetrics {
   delivered: number;
   read: number;
   failed: number;
+  marketingLimited: number;
+  rateLimited: number;
   processed: number;
   percentage: number;
   status: CampaignStatus;
+  sendingRate: string;
+  pauseReason?: string;
+  rateLimitCooldownUntil?: Date;
 }
+
+/**
+ * Outcome of attempting to send to one recipient. The loop uses this to decide
+ * whether to stop the whole run (RATE_LIMITED) without spawning a new batch.
+ */
+type RecipientResult = 'SENT' | 'FAILED' | 'MARKETING_LIMITED' | 'RATE_LIMITED' | 'BLOCKED' | 'NONE';
+
 
 export class CampaignSendingService {
   private static activeRunners = new Set<string>();
@@ -222,9 +234,14 @@ export class CampaignSendingService {
       }
     }
 
-    // 4. Update Campaign status in MongoDB
+    // 4. Cautious cold-start of the circuit breaker & update Campaign status.
+    //    beginRun() starts at concurrency 1 (HALF_OPEN) and ramps up only after
+    //    sustained success — never assume a safe throughput up front.
+    GlobalRateLimiterService.beginRun();
     campaign.status = 'RUNNING';
     campaign.startedAt = new Date();
+    campaign.pauseReason = undefined;
+    campaign.rateLimitCooldownUntil = undefined;
     await campaign.save();
 
     // 5. Trigger controlled background sending loop (non-blocking)
@@ -248,11 +265,28 @@ export class CampaignSendingService {
   public static async resumeCampaign(campaignId: string): Promise<void> {
     const campaign = await Campaign.findOne({ campaignId });
     if (!campaign) throw new NotFoundError('Campaign not found');
+
+    // Rate-limited recipients were preserved as retryable (not permanently
+    // FAILED). On an explicit admin resume, put them back in the queue so they
+    // get another chance under the cautious cold-start.
+    const requeued = await CampaignRecipient.updateMany(
+      { campaignId, status: 'RATE_LIMITED' },
+      { $set: { status: 'QUEUED' }, $unset: { errorCode: '', errorReason: '' } }
+    );
+
     campaign.status = 'RUNNING';
+    campaign.pauseReason = undefined;
+    campaign.rateLimitCooldownUntil = undefined;
     await campaign.save();
 
+    // Cautious cold-start: resume at concurrency 1 and ramp only on sustained
+    // success. If Meta is still limiting, the very first send will pause again.
+    GlobalRateLimiterService.beginRun();
     CampaignSendingService.runBackgroundLoop(campaignId);
-    logger.info('[CampaignEngine] Campaign resumed', { campaignId });
+    logger.info('[CampaignEngine] Campaign resumed (cautious cold-start)', {
+      campaignId,
+      requeuedRateLimited: requeued.modifiedCount,
+    });
   }
 
   public static async cancelCampaign(campaignId: string): Promise<void> {
@@ -287,6 +321,8 @@ export class CampaignSendingService {
     let rawDelivered = 0;
     let rawRead = 0;
     let failed = 0;
+    let marketingLimited = 0;
+    let rateLimited = 0;
 
     counts.forEach((item) => {
       const c = item.count;
@@ -297,13 +333,21 @@ export class CampaignSendingService {
       if (item._id === 'DELIVERED') rawDelivered = c;
       if (item._id === 'READ') rawRead = c;
       if (item._id === 'FAILED') failed = c;
+      if (item._id === 'MARKETING_LIMITED') marketingLimited = c;
+      if (item._id === 'RATE_LIMITED') rateLimited = c;
     });
 
     const read = rawRead;
     const delivered = rawDelivered + rawRead;
     const sent = rawSent + rawDelivered + rawRead;
-    const processed = sent + failed;
+    const processed = sent + failed + marketingLimited + rateLimited;
     const percentage = total > 0 ? Math.round((processed / total) * 10000) / 100 : 0;
+    const activeConcurrency = GlobalRateLimiterService.getCurrentConcurrency();
+
+    const isRateLimitPause = status === 'PAUSED' && campaign?.pauseReason === 'META_RATE_LIMIT';
+    const sendingRate = isRateLimitPause
+      ? 'Paused — Meta rate limit cooldown'
+      : `Adaptive (${activeConcurrency} concurrent worker${activeConcurrency > 1 ? 's' : ''})`;
 
     return {
       total,
@@ -313,23 +357,37 @@ export class CampaignSendingService {
       delivered,
       read,
       failed,
+      marketingLimited,
+      rateLimited,
       processed,
       percentage,
       status,
+      sendingRate,
+      pauseReason: campaign?.pauseReason,
+      rateLimitCooldownUntil: campaign?.rateLimitCooldownUntil,
     };
   }
 
   /**
-   * Controlled Background Processing Loop
+   * Awaitable single-run entry point. Used by tests to deterministically drive
+   * the loop to completion (or to a rate-limit pause) and assert on the result.
+   */
+  public static async runCampaignLoopNow(campaignId: string): Promise<void> {
+    await CampaignSendingService.processCampaign(campaignId);
+  }
+
+  /**
+   * Controlled background processing loop wrapper (fire-and-forget).
    */
   private static runBackgroundLoop(campaignId: string): void {
     if (CampaignSendingService.activeRunners.has(campaignId)) return;
     CampaignSendingService.activeRunners.add(campaignId);
 
-    // Fire & forget background execution
     setImmediate(async () => {
       try {
         await CampaignSendingService.processCampaign(campaignId);
+      } catch (err: any) {
+        logger.error('[CampaignEngine] Background loop crashed', { campaignId, error: err?.message });
       } finally {
         CampaignSendingService.activeRunners.delete(campaignId);
       }
@@ -337,16 +395,24 @@ export class CampaignSendingService {
   }
 
   private static async processCampaign(campaignId: string): Promise<void> {
-    const concurrency = env.WHATSAPP_SEND_CONCURRENCY || 5;
-
     while (true) {
       const campaign = await Campaign.findOne({ campaignId });
       if (!campaign || campaign.status !== 'RUNNING') {
-        logger.info('[CampaignEngine] Background loop stopping: state changed', { campaignId, status: campaign?.status });
+        logger.info('[CampaignEngine] Loop stopping: campaign no longer RUNNING', {
+          campaignId,
+          status: campaign?.status,
+        });
         break;
       }
 
-      // Check remaining queued recipients
+      // Defensive: if the breaker is OPEN (active cooldown), stop spawning work.
+      // The worker that tripped it has already set the campaign to PAUSED; it
+      // resumes only on explicit admin action (manual resume).
+      if (GlobalRateLimiterService.isOpen()) {
+        logger.warn('[CampaignEngine] Circuit OPEN — halting loop until manual resume', { campaignId });
+        break;
+      }
+
       const queuedCount = await CampaignRecipient.countDocuments({ campaignId, status: 'QUEUED' });
       const sendingCount = await CampaignRecipient.countDocuments({ campaignId, status: 'SENDING' });
 
@@ -358,20 +424,37 @@ export class CampaignSendingService {
         break;
       }
 
-      // Batch claim recipients atomically (QUEUED -> SENDING)
-      const workers: Promise<void>[] = [];
+      // Batch size follows the breaker's current concurrency (cautious 1 at
+      // cold-start, ramping up only after sustained success).
+      const concurrency = Math.max(1, GlobalRateLimiterService.getCurrentConcurrency());
+      const workers: Promise<RecipientResult>[] = [];
       for (let i = 0; i < concurrency; i++) {
         workers.push(CampaignSendingService.processNextRecipient(campaign));
       }
+      const results = await Promise.all(workers);
 
-      await Promise.all(workers);
+      // If ANY send in this batch hit a Meta rate limit, the breaker is now OPEN
+      // and the campaign is PAUSED. Stop immediately — do NOT spawn a new batch.
+      // This is what stops the cascade after the very first rate-limit response.
+      if (results.includes('RATE_LIMITED') || GlobalRateLimiterService.isOpen()) {
+        logger.warn('[CampaignEngine] Rate limit detected — campaign paused, loop halted', { campaignId });
+        break;
+      }
 
-      // Brief delay between batches to respect Meta API limits
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      // If nothing was claimable this pass (all blocked/none), back off a touch
+      // to avoid a hot spin; otherwise a short yield between batches.
+      const idle = results.every((r) => r === 'BLOCKED' || r === 'NONE');
+      await new Promise((resolve) => setTimeout(resolve, idle ? 50 : 20));
     }
   }
 
-  private static async processNextRecipient(campaign: ICampaign): Promise<void> {
+  private static async processNextRecipient(campaign: ICampaign): Promise<RecipientResult> {
+    // Gate BEFORE claiming — if the breaker is OPEN, don't touch a recipient
+    // (leave it QUEUED for a later resume, never stranded in SENDING).
+    if (!GlobalRateLimiterService.acquire().proceed) {
+      return 'BLOCKED';
+    }
+
     // Atomic claim of a queued recipient
     const recipient = await CampaignRecipient.findOneAndUpdate(
       { campaignId: campaign.campaignId, status: 'QUEUED' },
@@ -379,7 +462,7 @@ export class CampaignSendingService {
       { returnDocument: 'after' }
     ).populate('contactId');
 
-    if (!recipient) return;
+    if (!recipient) return 'NONE';
 
     const contact: any = recipient.contactId;
 
@@ -408,7 +491,17 @@ export class CampaignSendingService {
       recipient.errorCode = 'VARIABLE_RESOLUTION_ERROR';
       recipient.errorReason = variableError;
       await recipient.save();
-      return;
+      return 'FAILED';
+    }
+
+    // Re-check the gate immediately before the network call — a sibling in this
+    // same batch may have just tripped the breaker. If so, roll back the claim
+    // so this recipient stays eligible (QUEUED) and is never lost.
+    if (!GlobalRateLimiterService.acquire().proceed) {
+      recipient.status = 'QUEUED';
+      recipient.attempts = Math.max(0, recipient.attempts - 1);
+      await recipient.save();
+      return 'BLOCKED';
     }
 
     // Send template message via Meta WhatsApp Cloud API
@@ -427,36 +520,72 @@ export class CampaignSendingService {
       recipient.whatsappMessageId = res.messageId;
       recipient.sentAt = new Date();
       await recipient.save();
-    } catch (err: any) {
-      const safeErr = WhatsAppService.sanitizeError(err);
-      const maxRetries = env.WHATSAPP_MAX_RETRIES || 3;
-      const errCodeStr = String(err.code || err.errorCode || '');
-      const is131049 =
-        errCodeStr === '131049' ||
-        errCodeStr === '131026' ||
-        safeErr.includes('healthy ecosystem engagement');
 
-      if (is131049) {
-        recipient.status = 'FAILED';
+      GlobalRateLimiterService.recordSuccess();
+      return 'SENT';
+    } catch (err: any) {
+      const classification = GlobalRateLimiterService.classify(err);
+      const safeErr = WhatsAppService.sanitizeError(err);
+      const metaCode = GlobalRateLimiterService.extractMetaCode(err);
+
+      if (classification === 'MARKETING_LIMITED') {
+        // Per-recipient marketing cap (131049). NOT a global rate limit:
+        // preserve as retryable after 24h, but do NOT pause the campaign and do
+        // NOT count as delivered.
+        recipient.status = 'MARKETING_LIMITED';
         recipient.errorCode = '131049';
         recipient.errorReason = 'This message was not delivered to maintain healthy ecosystem engagement.';
-        recipient.retryAfter = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 Hours Cooldown
+        recipient.retryAfter = new Date(Date.now() + 24 * 60 * 60 * 1000);
         await recipient.save();
-        logger.warn('[CampaignEngine] Recipient marketing limited by Meta (131049)', {
-          phoneSuffix: recipient.phone.slice(-4),
-          retryAfter: recipient.retryAfter,
+        logger.warn('[CampaignEngine] Recipient MARKETING_LIMITED (131049)', {
+          classifiedAs: 'MARKETING_LIMITED',
+          retryable: false,
+          errorCode: '131049',
         });
-      } else if (recipient.attempts < maxRetries && err.status !== 400) {
-        // Reset to QUEUED for transient retry after backoff
-        recipient.status = 'QUEUED';
-        await recipient.save();
-        await new Promise((resolve) => setTimeout(resolve, Math.pow(2, recipient.attempts) * 1000));
-      } else {
-        recipient.status = 'FAILED';
-        recipient.errorCode = err.code || 'WHATSAPP_API_ERROR';
-        recipient.errorReason = safeErr;
-        await recipient.save();
+        return 'MARKETING_LIMITED';
       }
+
+      if (classification === 'RATE_LIMITED') {
+        // Trip the breaker on the FIRST hit and pause the whole campaign.
+        const { cooldownMs } = GlobalRateLimiterService.recordRateLimit(err);
+
+        // Preserve this recipient as retryable — NOT permanent FAILED, and NO
+        // re-queue churn while Meta is actively limiting.
+        recipient.status = 'RATE_LIMITED';
+        recipient.errorCode = metaCode || 'RATE_LIMITED';
+        recipient.errorReason = safeErr || 'Not delivered — Meta rate/spam limit reached';
+        await recipient.save();
+
+        // Atomically pause the campaign (avoids racing sibling doc saves).
+        await Campaign.updateOne(
+          { campaignId: campaign.campaignId, status: 'RUNNING' },
+          {
+            $set: {
+              status: 'PAUSED',
+              pauseReason: 'META_RATE_LIMIT',
+              rateLimitCooldownUntil: new Date(Date.now() + cooldownMs),
+            },
+          }
+        );
+        campaign.status = 'PAUSED';
+
+        logger.warn('[CampaignEngine] Meta rate limit detected. Campaign temporarily paused.', {
+          campaignId: campaign.campaignId,
+          classifiedAs: 'RATE_LIMITED',
+          retryable: true,
+          httpStatus: err?.statusCode ?? err?.status,
+          errorCode: metaCode || undefined,
+          cooldownMs,
+        });
+        return 'RATE_LIMITED';
+      }
+
+      // Permanent, non-retryable failure.
+      recipient.status = 'FAILED';
+      recipient.errorCode = metaCode || 'WHATSAPP_API_ERROR';
+      recipient.errorReason = safeErr;
+      await recipient.save();
+      return 'FAILED';
     }
   }
 
@@ -464,17 +593,17 @@ export class CampaignSendingService {
    * Manually retry failed recipients (enforcing 24h retryAfter cooldown for error 131049)
    */
   public static async retryFailedRecipients(campaignId: string): Promise<{ retriedCount: number; blockedCount: number }> {
-    const failedRecipients = await CampaignRecipient.find({ campaignId, status: 'FAILED' });
+    const failedRecipients = await CampaignRecipient.find({
+      campaignId,
+      status: { $in: ['FAILED', 'RATE_LIMITED', 'MARKETING_LIMITED'] },
+    });
     const now = new Date();
 
     let retriedCount = 0;
     let blockedCount = 0;
 
     for (const recipient of failedRecipients) {
-      const is131049 =
-        recipient.errorCode === '131049' ||
-        recipient.errorCode === '131026' ||
-        (recipient.errorReason || '').includes('healthy ecosystem engagement');
+      const is131049 = GlobalRateLimiterService.isMarketingLimitError(recipient);
 
       if (is131049 || recipient.retryAfter) {
         const canRetry = recipient.retryAfter ? recipient.retryAfter.getTime() <= now.getTime() : false;
@@ -494,7 +623,10 @@ export class CampaignSendingService {
       const campaign = await Campaign.findOne({ campaignId });
       if (campaign && campaign.status !== 'RUNNING') {
         campaign.status = 'RUNNING';
+        campaign.pauseReason = undefined;
+        campaign.rateLimitCooldownUntil = undefined;
         await campaign.save();
+        GlobalRateLimiterService.beginRun();
         CampaignSendingService.runBackgroundLoop(campaignId);
       }
     }

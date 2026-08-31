@@ -110,6 +110,10 @@ export const CampaignReportView: React.FC<CampaignReportViewProps> = ({ campaign
         return <Badge variant="neutral" size="sm"><Send className="w-3 h-3 mr-1" /> Sent</Badge>;
       case 'FAILED':
         return <Badge variant="error" size="sm"><AlertTriangle className="w-3 h-3 mr-1" /> Failed</Badge>;
+      case 'MARKETING_LIMITED':
+        return <Badge variant="warning" size="sm"><AlertTriangle className="w-3 h-3 mr-1" /> Marketing Limited</Badge>;
+      case 'RATE_LIMITED':
+        return <Badge variant="warning" size="sm"><AlertTriangle className="w-3 h-3 mr-1" /> Rate Limited</Badge>;
       case 'CANCELLED':
         return <Badge variant="neutral" size="sm">Skipped</Badge>;
       case 'SENDING':
@@ -176,11 +180,11 @@ export const CampaignReportView: React.FC<CampaignReportViewProps> = ({ campaign
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Retry Failed Recipients */}
+              {/* Retry Failed Recipients (also covers rate-limited & eligible marketing-limited) */}
               <Button
                 variant="outline"
                 size="sm"
-                disabled={!m || m.failed === 0 || isRetrying}
+                disabled={!m || (m.failed === 0 && m.rateLimited === 0 && m.marketingLimited === 0) || isRetrying}
                 onClick={handleRetryFailed}
                 leftIcon={<RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${isRetrying ? 'animate-spin' : ''}`} />}
               >
@@ -224,7 +228,7 @@ export const CampaignReportView: React.FC<CampaignReportViewProps> = ({ campaign
 
           {/* Summary Metrics & Rates Grid */}
           {m && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
               <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
                 <span className="text-[11px] text-slate-400 block">Total Recipients</span>
                 <span className="text-xl font-bold text-white">{m.total}</span>
@@ -246,8 +250,12 @@ export const CampaignReportView: React.FC<CampaignReportViewProps> = ({ campaign
                 <span className="text-xl font-bold text-rose-400">{m.failed}</span>
               </div>
               <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-                <span className="text-[11px] text-slate-400 block">Skipped</span>
-                <span className="text-xl font-bold text-slate-400">{m.skipped}</span>
+                <span className="text-[11px] text-amber-400 block">Marketing Limited</span>
+                <span className="text-xl font-bold text-amber-400">{m.marketingLimited || 0}</span>
+              </div>
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                <span className="text-[11px] text-orange-400 block">Rate Limited</span>
+                <span className="text-xl font-bold text-orange-400">{m.rateLimited || 0}</span>
               </div>
               <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
                 <span className="text-[11px] text-slate-400 block">Duration</span>
@@ -294,7 +302,7 @@ export const CampaignReportView: React.FC<CampaignReportViewProps> = ({ campaign
           {/* Table Filters & Search */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
             <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 w-full sm:w-auto overflow-x-auto">
-              {['', 'SENT', 'DELIVERED', 'READ', 'FAILED', 'CANCELLED'].map((st) => (
+              {['', 'SENT', 'DELIVERED', 'READ', 'FAILED', 'MARKETING_LIMITED', 'RATE_LIMITED', 'CANCELLED'].map((st) => (
                 <button
                   key={st}
                   onClick={() => {
@@ -307,7 +315,7 @@ export const CampaignReportView: React.FC<CampaignReportViewProps> = ({ campaign
                       : 'text-slate-400 hover:text-white hover:bg-slate-900'
                   }`}
                 >
-                  {st === '' ? 'ALL' : st === 'CANCELLED' ? 'SKIPPED' : st}
+                  {st === '' ? 'ALL' : st === 'CANCELLED' ? 'SKIPPED' : st === 'MARKETING_LIMITED' ? 'MKT LIMITED' : st === 'RATE_LIMITED' ? 'RATE LIMITED' : st}
                 </button>
               ))}
             </div>

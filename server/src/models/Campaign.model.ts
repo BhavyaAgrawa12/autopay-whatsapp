@@ -24,6 +24,9 @@ export interface ICampaign extends Document {
   variableMappings: any[];
   audience: any;
   status: CampaignStatus;
+  maxMessagesPerHour?: number;
+  pauseReason?: string;
+  rateLimitCooldownUntil?: Date;
   testMessageStatus?: string;
   testRecipientPhone?: string;
   startedAt?: Date;
@@ -44,6 +47,7 @@ const CampaignSchema = new Schema<ICampaign>(
     headerConfig: { type: Schema.Types.Mixed, default: { format: 'NONE' } },
     variableMappings: { type: Schema.Types.Mixed, default: [] },
     audience: { type: Schema.Types.Mixed, default: {} },
+    maxMessagesPerHour: { type: Number, default: 100, min: 1, max: 100 },
     status: {
       type: String,
       enum: [
@@ -61,6 +65,8 @@ const CampaignSchema = new Schema<ICampaign>(
       default: 'DRAFT',
       index: true,
     },
+    pauseReason: { type: String },
+    rateLimitCooldownUntil: { type: Date },
     testMessageStatus: { type: String },
     testRecipientPhone: { type: String },
     startedAt: { type: Date },

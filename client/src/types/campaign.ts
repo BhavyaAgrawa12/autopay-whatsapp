@@ -52,6 +52,9 @@ export interface Campaign {
   variableMappings: VariableMapping[];
   audience: CampaignAudienceSelection;
   status: CampaignStatus;
+  maxMessagesPerHour?: number;
+  pauseReason?: string;
+  rateLimitCooldownUntil?: string;
   createdAt: string;
   updatedAt: string;
   testedAt?: string;

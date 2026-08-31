@@ -9,16 +9,21 @@ export interface CampaignProgressData {
   delivered: number;
   read: number;
   failed: number;
+  marketingLimited: number;
+  rateLimited: number;
   processed: number;
   percentage: number;
   status: string;
+  sendingRate: string;
+  pauseReason?: string;
+  rateLimitCooldownUntil?: string;
 }
 
 export interface CampaignRecipientItem {
   _id: string;
   campaignId: string;
   phone: string;
-  status: 'QUEUED' | 'SENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'CANCELLED';
+  status: 'QUEUED' | 'SENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'CANCELLED' | 'MARKETING_LIMITED' | 'RATE_LIMITED';
   whatsappMessageId?: string;
   sentAt?: string;
   deliveredAt?: string;
@@ -168,6 +173,8 @@ export interface CampaignReportData {
     templateName: string;
     templateLanguage: string;
     status: string;
+    pauseReason?: string;
+    rateLimitCooldownUntil?: string;
     headerFormat?: string;
     audienceCount: number;
     createdAt: string;
@@ -182,6 +189,8 @@ export interface CampaignReportData {
     delivered: number;
     read: number;
     failed: number;
+    marketingLimited: number;
+    rateLimited: number;
     skipped: number;
     deliveryRate: number;
     readRate: number;

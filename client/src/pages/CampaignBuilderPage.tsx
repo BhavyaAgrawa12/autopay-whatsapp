@@ -50,6 +50,7 @@ export const CampaignBuilderPage: React.FC = () => {
 
   // Form States
   const [campaignName, setCampaignName] = useState('');
+  const [maxMessagesPerHour, setMaxMessagesPerHour] = useState<number>(100);
   const [selectedTemplate, setSelectedTemplate] = useState<WATemplate | null>(null);
   const [templates, setTemplates] = useState<WATemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
@@ -78,6 +79,7 @@ export const CampaignBuilderPage: React.FC = () => {
       const existing = getCampaignById(id);
       if (existing) {
         setCampaignName(existing.name);
+        setMaxMessagesPerHour(existing.maxMessagesPerHour || 100);
         setHeaderConfig(existing.headerConfig);
         setVariableMappings(existing.variableMappings);
         setAudienceIds(existing.audience.selectedContactIds);
@@ -305,6 +307,7 @@ export const CampaignBuilderPage: React.FC = () => {
       variableMappings,
       audience: audienceStats,
       status,
+      maxMessagesPerHour,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -465,6 +468,32 @@ export const CampaignBuilderPage: React.FC = () => {
                   />
                   <p className="text-[11px] text-slate-500 mt-1">
                     Internal campaign identifier for reporting and tracking.
+                  </p>
+                </div>
+
+                <div className="pt-2">
+                  <label className="block font-semibold text-slate-300 mb-1">
+                    Max Sending Rate (Messages / Hour)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={maxMessagesPerHour}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (isNaN(val)) setMaxMessagesPerHour(100);
+                        else setMaxMessagesPerHour(Math.max(1, Math.min(100, val)));
+                      }}
+                      className="w-32 bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono text-sm focus:outline-none focus:border-emerald-500"
+                    />
+                    <span className="text-xs text-slate-400">
+                      Messages/hour (Default: 100 max rate, Min: 1, Max: 100)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Application-level queue sending throttle. Safety capped at maximum 100 messages/hour.
                   </p>
                 </div>
               </div>

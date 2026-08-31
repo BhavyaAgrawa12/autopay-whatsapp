@@ -42,9 +42,14 @@ const envSchema = z.object({
   WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().default('it-company-whatsapp-webhook-verify-2026'),
   WHATSAPP_APP_SECRET: z.string().optional(),
 
-  // Sending Engine Tuning
+  // Sending Engine Tuning & Adaptive Rate Limiting
   WHATSAPP_SEND_CONCURRENCY: z.string().default('5').transform((val) => parseInt(val, 10)),
+  WHATSAPP_MAX_CONCURRENCY: z.string().default('5').transform((val) => parseInt(val, 10)),
+  WHATSAPP_INITIAL_BACKOFF_MS: z.string().default('1000').transform((val) => parseInt(val, 10)),
+  WHATSAPP_MAX_BACKOFF_MS: z.string().default('60000').transform((val) => parseInt(val, 10)),
   WHATSAPP_MAX_RETRIES: z.string().default('3').transform((val) => parseInt(val, 10)),
+  WHATSAPP_SUCCESS_RAMP_STREAK: z.string().default('10').transform((val) => parseInt(val, 10)),
+  CAMPAIGN_MAX_MESSAGES_PER_HOUR: z.string().default('100').transform((val) => parseInt(val, 10)),
 
   // Login Rate Limiting Configuration
   AUTH_RATE_LIMIT_WINDOW_MS: z.string().default('60000').transform((val) => parseInt(val, 10)),

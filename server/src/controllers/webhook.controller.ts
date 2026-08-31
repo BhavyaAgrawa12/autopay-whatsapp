@@ -5,6 +5,7 @@ import { logger } from '../utils/logger.js';
 import { CampaignRecipient, RecipientSendStatus } from '../models/CampaignRecipient.model.js';
 import { MessageEvent, MessageEventStatus } from '../models/MessageEvent.model.js';
 import { InboxService } from '../services/inbox.service.js';
+import { GlobalRateLimiterService } from '../services/rateLimiter.service.js';
 
 // Status hierarchy rank for non-downgrading status precedence
 const STATUS_RANK: Record<string, number> = {
@@ -239,18 +240,26 @@ export async function handleWebhook(req: Request, res: Response, _next: NextFunc
           if (targetStatus === 'FAILED') {
             const errCodeStr = String(errorCode || 'META_DELIVERY_FAILURE');
             const rawTitle = errorTitle || '';
-            const is131049 = errCodeStr === '131049' || errCodeStr === '131026' || rawTitle.includes('healthy ecosystem engagement');
 
-            recipient.status = 'FAILED';
-            recipient.errorCode = is131049 ? '131049' : errCodeStr;
-            recipient.errorReason = is131049
-              ? 'This message was not delivered to maintain healthy ecosystem engagement.'
-              : rawTitle || 'Meta reported message delivery failure';
+            // Use the same classifier as the sender so webhook + sync paths
+            // never drift on what counts as a marketing cap vs a rate limit.
+            const classification = GlobalRateLimiterService.classify({ errorCode: errCodeStr, message: rawTitle });
 
-            if (is131049) {
+            if (classification === 'MARKETING_LIMITED') {
+              recipient.status = 'MARKETING_LIMITED';
+              recipient.errorCode = '131049';
+              recipient.errorReason = 'This message was not delivered to maintain healthy ecosystem engagement.';
               recipient.retryAfter = new Date(eventDate.getTime() + 24 * 60 * 60 * 1000);
+            } else if (classification === 'RATE_LIMITED') {
+              recipient.status = 'RATE_LIMITED';
+              recipient.errorCode = errCodeStr;
+              recipient.errorReason = rawTitle || 'Not delivered — Meta rate/spam limit reached';
+            } else {
+              recipient.status = 'FAILED';
+              recipient.errorCode = errCodeStr;
+              recipient.errorReason = rawTitle || 'Meta reported message delivery failure';
             }
-          } else if (targetRank > currentRank && recipient.status !== 'FAILED') {
+          } else if (targetRank > currentRank && recipient.status !== 'FAILED' && recipient.status !== 'MARKETING_LIMITED' && recipient.status !== 'RATE_LIMITED') {
             recipient.status = targetStatus as RecipientSendStatus;
           }
 

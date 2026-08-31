@@ -1,5 +1,5 @@
 import XLSX from 'xlsx';
-import { Campaign, ICampaign } from '../models/Campaign.model.js';
+import { Campaign } from '../models/Campaign.model.js';
 import { CampaignRecipient } from '../models/CampaignRecipient.model.js';
 import { NotFoundError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
@@ -12,6 +12,8 @@ export interface CampaignReportMetrics {
   delivered: number;
   read: number;
   failed: number;
+  marketingLimited: number;
+  rateLimited: number;
   skipped: number;
   deliveryRate: number;
   readRate: number;
@@ -58,6 +60,8 @@ export class ReportService {
     let rawDelivered = 0;
     let rawRead = 0;
     let failed = 0;
+    let marketingLimited = 0;
+    let rateLimited = 0;
     let skipped = 0;
 
     counts.forEach((item) => {
@@ -69,6 +73,8 @@ export class ReportService {
       if (item._id === 'DELIVERED') rawDelivered = c;
       if (item._id === 'READ') rawRead = c;
       if (item._id === 'FAILED') failed = c;
+      if (item._id === 'MARKETING_LIMITED') marketingLimited = c;
+      if (item._id === 'RATE_LIMITED') rateLimited = c;
       if (item._id === 'CANCELLED') skipped = c;
     });
 
@@ -78,7 +84,7 @@ export class ReportService {
 
     const deliveryRate = sent > 0 ? Number(((delivered / sent) * 100).toFixed(2)) : 0;
     const readRate = delivered > 0 ? Number(((read / delivered) * 100).toFixed(2)) : 0;
-    const failureRate = total > 0 ? Number(((failed / total) * 100).toFixed(2)) : 0;
+    const failureRate = total > 0 ? Number((((failed + marketingLimited + rateLimited) / total) * 100).toFixed(2)) : 0;
 
     let durationSeconds = 0;
     let durationFormatted = 'N/A';
@@ -114,6 +120,8 @@ export class ReportService {
         delivered,
         read,
         failed,
+        marketingLimited,
+        rateLimited,
         skipped,
         deliveryRate,
         readRate,
@@ -143,7 +151,7 @@ export class ReportService {
 
     if (exportType === 'failed') {
       typeSuffix = 'Failed';
-      query.status = 'FAILED';
+      query.status = { $in: ['FAILED', 'MARKETING_LIMITED', 'RATE_LIMITED'] };
     } else if (exportType === 'successful') {
       typeSuffix = 'Successful';
       query.status = { $in: ['SENT', 'DELIVERED', 'READ'] };
@@ -161,6 +169,13 @@ export class ReportService {
       const contact = r.contactId || {};
       const customFields = contact.customFields || {};
 
+      let formattedReason = r.errorReason || 'N/A';
+      if (r.status === 'MARKETING_LIMITED' || r.errorCode === '131049' || (r.errorReason || '').includes('healthy ecosystem engagement')) {
+        formattedReason = 'Not delivered — Meta marketing delivery limit';
+      } else if (r.status === 'RATE_LIMITED' || (r.errorReason || '').includes('rate limit')) {
+        formattedReason = 'Not delivered — Meta rate/spam limit reached';
+      }
+
       return {
         'Contact Name': contact.name || r.name || 'N/A',
         'Phone Number': String(r.phone || ''),
@@ -175,10 +190,7 @@ export class ReportService {
         'Delivered At': r.deliveredAt ? new Date(r.deliveredAt).toLocaleString() : 'N/A',
         'Read At': r.readAt ? new Date(r.readAt).toLocaleString() : 'N/A',
         'Error Code': r.errorCode || 'N/A',
-        'Error Reason':
-          r.errorCode === '131049' || r.errorCode === '131026' || (r.errorReason || '').includes('healthy ecosystem engagement')
-            ? 'Not delivered — Meta marketing delivery limit'
-            : r.errorReason || 'N/A',
+        'Error Reason': formattedReason,
         'Retry Eligible At': r.retryAfter ? new Date(r.retryAfter).toLocaleString() : 'N/A',
         'Attempts': r.attempts || 0,
         ...customFields,

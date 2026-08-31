@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { X, Search, RefreshCw, Eye, AlertTriangle, Send, CheckCheck } from 'lucide-react';
+import { X, Search, RefreshCw, Eye, AlertTriangle, Send, CheckCheck, Play } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import {
   fetchCampaignRecipientsApi,
   fetchCampaignProgressApi,
+  resumeCampaignApi,
   CampaignRecipientItem,
   CampaignProgressData,
 } from '../../api/campaigns';
@@ -29,6 +30,8 @@ export const CampaignRecipientsModal: React.FC<CampaignRecipientsModalProps> = (
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [search, setSearch] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [resuming, setResuming] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -54,6 +57,21 @@ export const CampaignRecipientsModal: React.FC<CampaignRecipientsModalProps> = (
     return () => clearInterval(interval);
   }, [campaignId, page, statusFilter, search]);
 
+  const handleResume = async () => {
+    setResuming(true);
+    setResumeError(null);
+    try {
+      await resumeCampaignApi(campaignId);
+      await loadData();
+    } catch (err: any) {
+      setResumeError(err?.message || 'Failed to resume campaign');
+    } finally {
+      setResuming(false);
+    }
+  };
+
+  const isRateLimitPause = progress?.status === 'PAUSED' && progress?.pauseReason === 'META_RATE_LIMIT';
+
   const deliveryRate = progress && progress.sent > 0 ? ((progress.delivered / progress.sent) * 100).toFixed(1) : '0.0';
   const readRate = progress && progress.delivered > 0 ? ((progress.read / progress.delivered) * 100).toFixed(1) : '0.0';
   const failureRate = progress && progress.total > 0 ? ((progress.failed / progress.total) * 100).toFixed(1) : '0.0';
@@ -68,6 +86,10 @@ export const CampaignRecipientsModal: React.FC<CampaignRecipientsModalProps> = (
         return <Badge variant="neutral" size="sm"><Send className="w-3 h-3 mr-1" /> Sent</Badge>;
       case 'FAILED':
         return <Badge variant="error" size="sm"><AlertTriangle className="w-3 h-3 mr-1" /> Failed</Badge>;
+      case 'MARKETING_LIMITED':
+        return <Badge variant="warning" size="sm"><AlertTriangle className="w-3 h-3 mr-1" /> Marketing Limited</Badge>;
+      case 'RATE_LIMITED':
+        return <Badge variant="warning" size="sm"><AlertTriangle className="w-3 h-3 mr-1" /> Rate Limited</Badge>;
       case 'SENDING':
         return <Badge variant="warning" size="sm">Sending...</Badge>;
       case 'QUEUED':
@@ -88,8 +110,11 @@ export const CampaignRecipientsModal: React.FC<CampaignRecipientsModalProps> = (
               <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-normal">
                 {campaignId}
               </span>
+              <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-medium">
+                Sending rate: {progress?.sendingRate || 'Adaptive Safe Sending'}
+              </span>
             </h2>
-            <p className="text-xs text-slate-400 mt-1">Real-time Webhook Delivery, Read & Failure Metrics</p>
+            <p className="text-xs text-slate-400 mt-1">Real-time Webhook Delivery, Read & Rate Limiting Metrics</p>
           </div>
           <button
             onClick={onClose}
@@ -101,9 +126,43 @@ export const CampaignRecipientsModal: React.FC<CampaignRecipientsModalProps> = (
 
         {/* Content Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
+          {/* Rate-limit / paused banner with manual Resume */}
+          {progress?.status === 'PAUSED' && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl border border-amber-500/40 bg-amber-500/10">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-300">
+                    {isRateLimitPause
+                      ? 'Meta rate limit detected. Campaign temporarily paused.'
+                      : 'Campaign paused.'}
+                  </p>
+                  <p className="text-xs text-amber-200/70 mt-0.5">
+                    {isRateLimitPause
+                      ? 'Sending stopped after a Meta rate-limit response to protect delivery quality. Rate-limited recipients are preserved and will be retried when you resume.'
+                      : 'Sending is paused. Resume when ready to continue delivering to the remaining queued recipients.'}
+                    {progress.rateLimitCooldownUntil
+                      ? ` Suggested cooldown until ${new Date(progress.rateLimitCooldownUntil).toLocaleTimeString()}.`
+                      : ''}
+                  </p>
+                  {resumeError && <p className="text-xs text-rose-400 mt-1">{resumeError}</p>}
+                </div>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleResume}
+                disabled={resuming}
+                leftIcon={<Play className={`w-3.5 h-3.5 ${resuming ? 'animate-pulse' : ''}`} />}
+              >
+                {resuming ? 'Resuming...' : 'Resume Campaign'}
+              </Button>
+            </div>
+          )}
+
           {/* Progress & Delivery Metrics Cards */}
           {progress && (
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-7 gap-3">
               <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
                 <span className="text-[11px] text-slate-400 block font-medium">Total Audience</span>
                 <span className="text-lg font-bold text-white">{progress.total}</span>
@@ -124,13 +183,21 @@ export const CampaignRecipientsModal: React.FC<CampaignRecipientsModalProps> = (
                 <span className="text-[11px] text-slate-400 block font-medium">Failed</span>
                 <span className="text-lg font-bold text-rose-400">{progress.failed} <span className="text-xs font-normal text-slate-400">({failureRate}%)</span></span>
               </div>
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                <span className="text-[11px] text-amber-400 block font-medium">Marketing Limited</span>
+                <span className="text-lg font-bold text-amber-400">{progress.marketingLimited || 0}</span>
+              </div>
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                <span className="text-[11px] text-orange-400 block font-medium">Rate Limited</span>
+                <span className="text-lg font-bold text-orange-400">{progress.rateLimited || 0}</span>
+              </div>
             </div>
           )}
 
           {/* Filters & Search Controls */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
             <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 w-full sm:w-auto overflow-x-auto">
-              {['', 'SENT', 'DELIVERED', 'READ', 'FAILED'].map((st) => (
+              {['', 'SENT', 'DELIVERED', 'READ', 'FAILED', 'MARKETING_LIMITED', 'RATE_LIMITED'].map((st) => (
                 <button
                   key={st}
                   onClick={() => {

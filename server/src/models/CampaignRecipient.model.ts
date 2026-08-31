@@ -1,6 +1,15 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
-export type RecipientSendStatus = 'QUEUED' | 'SENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'CANCELLED';
+export type RecipientSendStatus =
+  | 'QUEUED'
+  | 'SENDING'
+  | 'SENT'
+  | 'DELIVERED'
+  | 'READ'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'MARKETING_LIMITED'
+  | 'RATE_LIMITED';
 
 export interface ICampaignRecipient extends Document {
   campaignId: string;
@@ -30,7 +39,7 @@ const CampaignRecipientSchema = new Schema<ICampaignRecipient>(
     mediaAssetId: { type: String },
     status: {
       type: String,
-      enum: ['QUEUED', 'SENDING', 'SENT', 'DELIVERED', 'READ', 'FAILED', 'CANCELLED'],
+      enum: ['QUEUED', 'SENDING', 'SENT', 'DELIVERED', 'READ', 'FAILED', 'CANCELLED', 'MARKETING_LIMITED', 'RATE_LIMITED'],
       default: 'QUEUED',
       index: true,
     },
