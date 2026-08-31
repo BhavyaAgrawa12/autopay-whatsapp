@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Users,
   UploadCloud,
@@ -10,12 +10,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Info,
+  RefreshCw,
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
+import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { useContacts } from '../context/ContactContext';
 import { ImportWizardModal } from '../components/contacts/ImportWizardModal';
 import { OptInStatus } from '../types/contact';
@@ -23,12 +25,17 @@ import { OptInStatus } from '../types/contact';
 export const ContactsPage: React.FC = () => {
   const {
     contacts,
+    loading,
+    total,
+    totalPages,
     selectedContactIds,
     lastImportSummary,
     totalContactsCount,
     optedOutCount,
     selectedCount,
     eligibleSelectedCount,
+    facets,
+    loadContacts,
     removeContact,
     clearContacts,
     toggleSelectContact,
@@ -50,26 +57,36 @@ export const ContactsPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  // Extract unique cities, companies, services for filter dropdowns
-  const uniqueCities = useMemo(() => {
-    const set = new Set<string>();
-    contacts.forEach((c) => c.city && set.add(c.city));
-    return Array.from(set).sort();
-  }, [contacts]);
+  // Search debounce ref
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const uniqueCompanies = useMemo(() => {
-    const set = new Set<string>();
-    contacts.forEach((c) => c.company && set.add(c.company));
-    return Array.from(set).sort();
-  }, [contacts]);
+  // Trigger server fetch on filter, page, or page size changes
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
 
-  const uniqueServices = useMemo(() => {
-    const set = new Set<string>();
-    contacts.forEach((c) => c.service && set.add(c.service));
-    return Array.from(set).sort();
-  }, [contacts]);
+    searchTimeoutRef.current = setTimeout(() => {
+      loadContacts({
+        page: currentPage,
+        limit: pageSize,
+        search: searchTerm.trim() || undefined,
+        optIn: optInFilter !== 'ALL' ? optInFilter : undefined,
+        city: cityFilter !== 'ALL' ? cityFilter : undefined,
+        company: companyFilter !== 'ALL' ? companyFilter : undefined,
+        service: serviceFilter !== 'ALL' ? serviceFilter : undefined,
+        sort: 'newest',
+      });
+    }, 250);
 
-  // Extract all unique custom field keys across all loaded contacts
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [currentPage, pageSize, searchTerm, optInFilter, cityFilter, companyFilter, serviceFilter, loadContacts]);
+
+  // Extract unique custom field keys across all currently loaded contacts
   const customFieldKeys = useMemo(() => {
     const set = new Set<string>();
     contacts.forEach((c) => {
@@ -80,67 +97,38 @@ export const ContactsPage: React.FC = () => {
     return Array.from(set).sort();
   }, [contacts]);
 
-  // Filtered contacts calculation
-  const filteredContacts = useMemo(() => {
-    return contacts.filter((contact) => {
-      // Opt-in filter
-      if (optInFilter !== 'ALL' && contact.marketingOptIn !== optInFilter) {
-        return false;
-      }
-      // City filter
-      if (cityFilter !== 'ALL' && contact.city !== cityFilter) {
-        return false;
-      }
-      // Company filter
-      if (companyFilter !== 'ALL' && contact.company !== companyFilter) {
-        return false;
-      }
-      // Service filter
-      if (serviceFilter !== 'ALL' && contact.service !== serviceFilter) {
-        return false;
-      }
+  // Cities, companies, services from facets or fallback to contacts in memory
+  const uniqueCities = useMemo(() => {
+    if (facets?.cities && facets.cities.length > 0) return facets.cities;
+    const set = new Set<string>();
+    contacts.forEach((c) => c.city && set.add(c.city));
+    return Array.from(set).sort();
+  }, [facets, contacts]);
 
-      // Search term matching across Name, Phone, Email, Company, City, Service, Custom Fields
-      if (searchTerm.trim()) {
-        const term = searchTerm.toLowerCase();
-        const nameMatch = contact.name?.toLowerCase().includes(term);
-        const phoneMatch = (contact.phone || '').includes(term) || (contact.normalizedPhone || '').includes(term);
-        const emailMatch = contact.email?.toLowerCase().includes(term);
-        const companyMatch = contact.company?.toLowerCase().includes(term);
-        const cityMatch = contact.city?.toLowerCase().includes(term);
-        const serviceMatch = contact.service?.toLowerCase().includes(term);
+  const uniqueCompanies = useMemo(() => {
+    if (facets?.companies && facets.companies.length > 0) return facets.companies;
+    const set = new Set<string>();
+    contacts.forEach((c) => c.company && set.add(c.company));
+    return Array.from(set).sort();
+  }, [facets, contacts]);
 
-        // Custom field search
-        const customMatch = Object.values(contact.customFields || {}).some((val) =>
-          String(val).toLowerCase().includes(term)
-        );
+  const uniqueServices = useMemo(() => {
+    if (facets?.services && facets.services.length > 0) return facets.services;
+    const set = new Set<string>();
+    contacts.forEach((c) => c.service && set.add(c.service));
+    return Array.from(set).sort();
+  }, [facets, contacts]);
 
-        if (!nameMatch && !phoneMatch && !emailMatch && !companyMatch && !cityMatch && !serviceMatch && !customMatch) {
-          return false;
-        }
-      }
+  const isAllCurrentSelected = useMemo(() => {
+    if (contacts.length === 0) return false;
+    return contacts.every((c) => selectedContactIds.has(c.id || (c as any)._id));
+  }, [contacts, selectedContactIds]);
 
-      return true;
-    });
-  }, [contacts, searchTerm, optInFilter, cityFilter, companyFilter, serviceFilter]);
-
-  // Pagination calculation
-  const totalPages = Math.ceil(filteredContacts.length / pageSize) || 1;
-  const paginatedContacts = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredContacts.slice(start, start + pageSize);
-  }, [filteredContacts, currentPage, pageSize]);
-
-  const isAllFilteredSelected = useMemo(() => {
-    if (filteredContacts.length === 0) return false;
-    return filteredContacts.every((c) => selectedContactIds.has(c.id));
-  }, [filteredContacts, selectedContactIds]);
-
-  const handleSelectAllFilteredToggle = () => {
-    if (isAllFilteredSelected) {
+  const handleSelectAllCurrentToggle = () => {
+    if (isAllCurrentSelected) {
       deselectAllContacts();
     } else {
-      selectAllContacts(filteredContacts.map((c) => c.id));
+      selectAllContacts(contacts.map((c) => c.id || (c as any)._id));
     }
   };
 
@@ -151,14 +139,36 @@ export const ContactsPage: React.FC = () => {
     }
   };
 
+  const handleRefresh = () => {
+    loadContacts({
+      page: currentPage,
+      limit: pageSize,
+      search: searchTerm.trim() || undefined,
+      optIn: optInFilter !== 'ALL' ? optInFilter : undefined,
+      city: cityFilter !== 'ALL' ? cityFilter : undefined,
+      company: companyFilter !== 'ALL' ? companyFilter : undefined,
+      service: serviceFilter !== 'ALL' ? serviceFilter : undefined,
+      sort: 'newest',
+    });
+  };
+
   return (
     <div>
       <PageHeader
         title="Target Contacts Directory"
         description="Load and manage single company promotional customer lists via Excel/CSV."
-        badge={<Badge variant="info">Session Store Active</Badge>}
+        badge={<Badge variant="info">MongoDB Persistence Active</Badge>}
         actions={
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              isLoading={loading}
+              leftIcon={<RefreshCw className="w-4 h-4" />}
+            >
+              Refresh
+            </Button>
             {lastImportSummary && (lastImportSummary.invalidRows?.length ?? 0) > 0 && (
               <Button
                 variant="outline"
@@ -186,17 +196,17 @@ export const ContactsPage: React.FC = () => {
         <div className="flex items-center gap-2 text-slate-300">
           <Info className="w-4 h-4 text-sky-400 shrink-0" />
           <span>
-            <strong>Database Persistence:</strong> Imported contacts are stored securely in your MongoDB database and accessible anytime.
+            <strong>Database Persistence:</strong> All contacts are stored securely in your database and accessible anytime across campaigns.
           </span>
         </div>
-        {contacts.length > 0 && (
+        {totalContactsCount > 0 && (
           <Button
             variant="ghost"
             size="sm"
             onClick={clearContacts}
             className="text-rose-400 hover:text-rose-300 hover:bg-rose-950/40"
           >
-            Clear Session Contacts
+            Clear Selected Contacts
           </Button>
         )}
       </div>
@@ -238,11 +248,11 @@ export const ContactsPage: React.FC = () => {
         </Card>
       </div>
 
-      {contacts.length === 0 ? (
+      {totalContactsCount === 0 && !loading && !searchTerm && optInFilter === 'ALL' ? (
         <EmptyState
           icon={Users}
-          title="No Contacts Loaded in Active Session"
-          description="Upload an Excel (.xlsx, .xls) or CSV file to import target contacts into session state."
+          title="No Contacts Loaded in Database"
+          description="Upload an Excel (.xlsx, .xls) or CSV file to import target contacts into database."
           actionLabel="Import Contacts Now"
           onAction={() => setIsImportModalOpen(true)}
         />
@@ -261,7 +271,7 @@ export const ContactsPage: React.FC = () => {
                     setSearchTerm(e.target.value);
                     setCurrentPage(1);
                   }}
-                  placeholder="Search Name, Phone, Email, Company, City, Service, Custom Fields..."
+                  placeholder="Search Name, Phone, Email, Company, City, Service..."
                   className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />
               </div>
@@ -340,15 +350,15 @@ export const ContactsPage: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-800/80 text-xs">
               <div className="flex items-center gap-3 flex-wrap">
                 <button
-                  onClick={handleSelectAllFilteredToggle}
+                  onClick={handleSelectAllCurrentToggle}
                   className="flex items-center gap-1.5 font-medium text-slate-300 hover:text-white transition-colors"
                 >
-                  {isAllFilteredSelected ? (
+                  {isAllCurrentSelected ? (
                     <CheckSquare className="w-4 h-4 text-emerald-400" />
                   ) : (
                     <Square className="w-4 h-4 text-slate-500" />
                   )}
-                  Select All Filtered ({filteredContacts.length})
+                  Select Page ({contacts.length})
                 </button>
                 {selectedCount > 0 && (
                   <button
@@ -378,7 +388,13 @@ export const ContactsPage: React.FC = () => {
           </Card>
 
           {/* Contact Data Table */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl text-xs">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl text-xs relative">
+            {loading && (
+              <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm z-20 flex items-center justify-center">
+                <LoadingSpinner size="md" label="Loading contacts..." />
+              </div>
+            )}
+
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead className="bg-slate-950 text-slate-400 font-semibold border-b border-slate-800">
@@ -386,8 +402,8 @@ export const ContactsPage: React.FC = () => {
                     <th className="p-3 w-10 text-center">
                       <input
                         type="checkbox"
-                        checked={isAllFilteredSelected}
-                        onChange={handleSelectAllFilteredToggle}
+                        checked={isAllCurrentSelected}
+                        onChange={handleSelectAllCurrentToggle}
                         className="rounded border-slate-700 text-emerald-600 focus:ring-emerald-500"
                       />
                     </th>
@@ -406,14 +422,14 @@ export const ContactsPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {paginatedContacts.length === 0 ? (
+                  {contacts.length === 0 ? (
                     <tr>
                       <td colSpan={8 + customFieldKeys.length} className="p-8 text-center text-slate-500">
-                        No contacts match the active search and filter criteria.
+                        {loading ? 'Fetching contacts from database...' : 'No contacts match the active search and filter criteria.'}
                       </td>
                     </tr>
                   ) : (
-                    paginatedContacts.map((contact) => {
+                    contacts.map((contact) => {
                       const cid = contact.id || (contact as any)._id;
                       const isSelected = selectedContactIds.has(cid);
                       const displayPhone = contact.normalizedPhone
@@ -486,8 +502,8 @@ export const ContactsPage: React.FC = () => {
                   <option value={100}>100</option>
                 </select>
                 <span>
-                  Showing {filteredContacts.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} -{' '}
-                  {Math.min(currentPage * pageSize, filteredContacts.length)} of {filteredContacts.length}
+                  Showing {total > 0 ? (currentPage - 1) * pageSize + 1 : 0} -{' '}
+                  {Math.min(currentPage * pageSize, total)} of {total} contacts
                 </span>
               </div>
 
@@ -495,7 +511,7 @@ export const ContactsPage: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  disabled={currentPage === 1}
+                  disabled={currentPage <= 1 || loading}
                   onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   leftIcon={<ChevronLeft className="w-4 h-4" />}
                 >
@@ -507,7 +523,7 @@ export const ContactsPage: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  disabled={currentPage >= totalPages}
+                  disabled={currentPage >= totalPages || loading}
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                   rightIcon={<ChevronRight className="w-4 h-4" />}
                 >
@@ -522,7 +538,10 @@ export const ContactsPage: React.FC = () => {
       {/* Import Wizard Modal Component */}
       <ImportWizardModal
         isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
+        onClose={() => {
+          setIsImportModalOpen(false);
+          loadContacts({ page: 1, sort: 'newest' });
+        }}
       />
     </div>
   );

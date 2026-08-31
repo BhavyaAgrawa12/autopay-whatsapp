@@ -13,6 +13,9 @@ export async function getContacts(req: Request, res: Response, next: NextFunctio
     const limit = parseInt(req.query.limit as string, 10) || 50;
     const search = (req.query.search as string) || '';
     const optIn = (req.query.optIn as string) || '';
+    const city = (req.query.city as string) || '';
+    const company = (req.query.company as string) || '';
+    const service = (req.query.service as string) || '';
     const sortMode = (req.query.sort as string) || 'newest';
 
     const filterQuery: any = {};
@@ -20,29 +23,57 @@ export async function getContacts(req: Request, res: Response, next: NextFunctio
     if (optIn && optIn !== 'ALL') {
       filterQuery.marketingOptIn = optIn;
     }
+    if (city && city !== 'ALL') {
+      filterQuery.city = city;
+    }
+    if (company && company !== 'ALL') {
+      filterQuery.company = company;
+    }
+    if (service && service !== 'ALL') {
+      filterQuery.service = service;
+    }
 
     if (search.trim()) {
-      const regex = new RegExp(search.trim(), 'i');
+      const sanitized = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(sanitized, 'i');
       filterQuery.$or = [
         { name: regex },
         { phoneNormalized: regex },
+        { phoneRaw: regex },
         { email: regex },
         { company: regex },
         { city: regex },
+        { service: regex },
       ];
     }
 
     const total = await Contact.countDocuments(filterQuery);
     const totalPages = Math.ceil(total / limit) || 1;
 
-    let sortOptions: any = { createdAt: -1 };
+    let sortOptions: any = { updatedAt: -1, createdAt: -1 };
     if (sortMode === 'oldest') sortOptions = { createdAt: 1 };
     else if (sortMode === 'name') sortOptions = { name: 1 };
+    else if (sortMode === 'newest') sortOptions = { updatedAt: -1, createdAt: -1 };
 
     const contacts = await Contact.find(filterQuery)
       .sort(sortOptions)
       .skip((page - 1) * limit)
       .limit(limit);
+
+    // Aggregate global stats & facet dropdown values in parallel
+    const [totalContacts, optedOutCount, optedInCount, unknownCount, rawCities, rawCompanies, rawServices] = await Promise.all([
+      Contact.countDocuments({}),
+      Contact.countDocuments({ marketingOptIn: 'OPTED_OUT' }),
+      Contact.countDocuments({ marketingOptIn: 'OPTED_IN' }),
+      Contact.countDocuments({ marketingOptIn: 'UNKNOWN' }),
+      Contact.distinct('city', { city: { $nin: [null, ''] } }),
+      Contact.distinct('company', { company: { $nin: [null, ''] } }),
+      Contact.distinct('service', { service: { $nin: [null, ''] } }),
+    ]);
+
+    const cities = (rawCities as string[]).filter(Boolean).sort();
+    const companies = (rawCompanies as string[]).filter(Boolean).sort();
+    const services = (rawServices as string[]).filter(Boolean).sort();
 
     res.status(200).json({
       success: true,
@@ -52,6 +83,17 @@ export async function getContacts(req: Request, res: Response, next: NextFunctio
         limit,
         total,
         totalPages,
+        stats: {
+          totalContacts,
+          optedOutCount,
+          optedInCount,
+          unknownCount,
+        },
+        facets: {
+          cities,
+          companies,
+          services,
+        },
       },
     });
   } catch (error) {
@@ -89,6 +131,7 @@ export async function importContacts(req: Request, res: Response, next: NextFunc
     let duplicateCount = 0;
     let insertedCount = 0;
     const seenInFileSet = new Set<string>();
+    const now = new Date();
 
     // 2. Validate row by row and build Upsert operations
     parsedRows.forEach((row) => {
@@ -130,6 +173,10 @@ export async function importContacts(req: Request, res: Response, next: NextFunc
               marketingOptIn: row.optInStatus || existingInDb?.marketingOptIn || 'OPTED_IN',
               customFields: { ...(existingInDb?.customFields || {}), ...(row.customFields || {}) },
               source: file.originalname,
+              updatedAt: now,
+            },
+            $setOnInsert: {
+              createdAt: now,
             },
           },
           upsert: true,

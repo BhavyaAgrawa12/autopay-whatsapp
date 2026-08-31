@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Contact, MarketingOptInStatus } from '../types/contact';
 import {
   fetchContactsApi,
@@ -6,6 +6,17 @@ import {
   updateContactOptInApi,
   deleteContactApi,
 } from '../api/contacts';
+
+export interface ContactFilterParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  optIn?: string;
+  city?: string;
+  company?: string;
+  service?: string;
+  sort?: string;
+}
 
 interface ContactContextType {
   contacts: Contact[];
@@ -21,7 +32,12 @@ interface ContactContextType {
   optedOutCount: number;
   selectedCount: number;
   eligibleSelectedCount: number;
-  loadContacts: (params?: { page?: number; limit?: number; search?: string; optIn?: string }) => Promise<void>;
+  facets: {
+    cities: string[];
+    companies: string[];
+    services: string[];
+  };
+  loadContacts: (params?: ContactFilterParams) => Promise<void>;
   importContacts: (arg1: any, arg2?: any) => Promise<any>;
   importContactsFromFile: (arg1: any, arg2?: any) => Promise<any>;
   updateOptInStatus: (id: string, newStatus: MarketingOptInStatus) => Promise<void>;
@@ -45,31 +61,59 @@ export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [limit, setLimit] = useState<number>(50);
   const [total, setTotal] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(1);
+  const [globalStats, setGlobalStats] = useState<{
+    totalContacts: number;
+    optedOutCount: number;
+    optedInCount: number;
+    unknownCount: number;
+  }>({ totalContacts: 0, optedOutCount: 0, optedInCount: 0, unknownCount: 0 });
+
+  const [facets, setFacets] = useState<{
+    cities: string[];
+    companies: string[];
+    services: string[];
+  }>({ cities: [], companies: [], services: [] });
+
+  const [activeParams, setActiveParams] = useState<ContactFilterParams>({
+    page: 1,
+    limit: 50,
+    sort: 'newest',
+  });
+
   const [lastImportSummary, setLastImportSummary] = useState<any | null>(null);
   const [lastErrorReportBase64, setLastErrorReportBase64] = useState<string | null>(null);
-
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
 
-  const loadContacts = async (params?: { page?: number; limit?: number; search?: string; optIn?: string }) => {
+  const loadContacts = useCallback(async (params?: ContactFilterParams) => {
     setLoading(true);
     setError(null);
+    const query = { ...activeParams, ...(params || {}) };
+    setActiveParams(query);
+
     try {
-      const data = await fetchContactsApi(params);
+      const data = await fetchContactsApi(query);
       setContacts(data.contacts || []);
       setPage(data.page || 1);
       setLimit(data.limit || 50);
       setTotal(data.total || 0);
       setTotalPages(data.totalPages || 1);
+
+      if (data.stats) {
+        setGlobalStats(data.stats);
+      }
+      if (data.facets) {
+        setFacets(data.facets);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to load contacts from database');
       setContacts([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeParams]);
 
   useEffect(() => {
-    loadContacts();
+    loadContacts({ page: 1, limit: 50, sort: 'newest' });
   }, []);
 
   const importContactsFromFile = async (arg1: any, arg2?: any) => {
@@ -81,11 +125,12 @@ export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (result.errorReportXlsxBase64) {
           setLastErrorReportBase64(result.errorReportXlsxBase64);
         }
-        await loadContacts();
+        // Immediately reload page 1 with newest sort so newly uploaded contacts appear at top
+        await loadContacts({ page: 1, sort: 'newest', search: '', optIn: '', city: '', company: '', service: '' });
         return result;
       } else {
         setLastImportSummary(arg2 || null);
-        await loadContacts();
+        await loadContacts({ page: 1, sort: 'newest' });
       }
     } catch (err: any) {
       setError(err.message || 'Failed to import contacts file.');
@@ -99,6 +144,7 @@ export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       const updated = await updateContactOptInApi(id, newStatus);
       setContacts((prev) => prev.map((c) => (c.id === id || (c as any)._id === id ? updated : c)));
+      loadContacts();
     } catch (err: any) {
       setError(err.message || 'Failed to update contact status');
       throw err;
@@ -121,7 +167,6 @@ export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const clearContacts = async () => {
-    // Delete selected contacts
     for (const id of Array.from(selectedContactIds)) {
       await deleteContactApi(id).catch(() => {});
     }
@@ -157,8 +202,8 @@ export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setSelectedContactIds(new Set());
   };
 
-  const totalContactsCount = total;
-  const optedOutCount = contacts.filter((c) => c.marketingOptIn === 'OPTED_OUT').length;
+  const totalContactsCount = globalStats.totalContacts || total;
+  const optedOutCount = globalStats.optedOutCount || contacts.filter((c) => c.marketingOptIn === 'OPTED_OUT').length;
   const selectedCount = selectedContactIds.size;
   const eligibleSelectedCount = contacts.filter(
     (c) => selectedContactIds.has(c.id || (c as any)._id) && c.marketingOptIn === 'OPTED_IN'
@@ -180,6 +225,7 @@ export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ child
         optedOutCount,
         selectedCount,
         eligibleSelectedCount,
+        facets,
         loadContacts,
         importContacts: importContactsFromFile,
         importContactsFromFile,

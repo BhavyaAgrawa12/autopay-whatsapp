@@ -7,6 +7,17 @@ export interface PaginatedContactsResponse {
   limit: number;
   total: number;
   totalPages: number;
+  stats?: {
+    totalContacts: number;
+    optedOutCount: number;
+    optedInCount: number;
+    unknownCount: number;
+  };
+  facets?: {
+    cities: string[];
+    companies: string[];
+    services: string[];
+  };
 }
 
 export async function fetchContactsApi(query?: {
@@ -14,6 +25,9 @@ export async function fetchContactsApi(query?: {
   limit?: number;
   search?: string;
   optIn?: string;
+  city?: string;
+  company?: string;
+  service?: string;
   sort?: string;
 }): Promise<PaginatedContactsResponse> {
   const params = new URLSearchParams();
@@ -21,6 +35,9 @@ export async function fetchContactsApi(query?: {
   if (query?.limit) params.append('limit', String(query.limit));
   if (query?.search) params.append('search', query.search);
   if (query?.optIn) params.append('optIn', query.optIn);
+  if (query?.city) params.append('city', query.city);
+  if (query?.company) params.append('company', query.company);
+  if (query?.service) params.append('service', query.service);
   if (query?.sort) params.append('sort', query.sort);
 
   const res = await fetch(`${API_BASE_URL}/api/contacts?${params.toString()}`, {
