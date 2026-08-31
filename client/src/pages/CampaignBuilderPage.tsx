@@ -50,7 +50,7 @@ export const CampaignBuilderPage: React.FC = () => {
 
   // Form States
   const [campaignName, setCampaignName] = useState('');
-  const [maxMessagesPerHour, setMaxMessagesPerHour] = useState<number>(100);
+  const [maxMessagesPerHour, setMaxMessagesPerHour] = useState<number>(1000);
   const [selectedTemplate, setSelectedTemplate] = useState<WATemplate | null>(null);
   const [templates, setTemplates] = useState<WATemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
@@ -79,7 +79,7 @@ export const CampaignBuilderPage: React.FC = () => {
       const existing = getCampaignById(id);
       if (existing) {
         setCampaignName(existing.name);
-        setMaxMessagesPerHour(existing.maxMessagesPerHour || 100);
+        setMaxMessagesPerHour(existing.maxMessagesPerHour || 1000);
         setHeaderConfig(existing.headerConfig);
         setVariableMappings(existing.variableMappings);
         setAudienceIds(existing.audience.selectedContactIds);
@@ -472,28 +472,47 @@ export const CampaignBuilderPage: React.FC = () => {
                 </div>
 
                 <div className="pt-2">
-                  <label className="block font-semibold text-slate-300 mb-1">
-                    Max Sending Rate (Messages / Hour)
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="font-semibold text-slate-300">
+                      Sending Rate Throttle (Messages / Hour)
+                    </label>
+                    <Badge variant="success" size="sm">Adaptive Circuit Breaker Active</Badge>
+                  </div>
                   <div className="flex items-center gap-3">
                     <input
                       type="number"
                       min={1}
-                      max={100}
+                      max={100000}
                       value={maxMessagesPerHour}
                       onChange={(e) => {
                         const val = parseInt(e.target.value, 10);
-                        if (isNaN(val)) setMaxMessagesPerHour(100);
-                        else setMaxMessagesPerHour(Math.max(1, Math.min(100, val)));
+                        if (isNaN(val)) setMaxMessagesPerHour(1000);
+                        else setMaxMessagesPerHour(Math.max(1, Math.min(100000, val)));
                       }}
-                      className="w-32 bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono text-sm focus:outline-none focus:border-emerald-500"
+                      className="w-36 bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-white font-mono text-sm focus:outline-none focus:border-emerald-500"
                     />
                     <span className="text-xs text-slate-400">
-                      Messages/hour (Default: 100 max rate, Min: 1, Max: 100)
+                      Messages/hour (Default: 1,000 | Min: 1, Max: 100,000)
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    Application-level queue sending throttle. Safety capped at maximum 100 messages/hour.
+                  <div className="flex items-center gap-2 mt-2">
+                    {[250, 500, 1000, 2500, 5000].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setMaxMessagesPerHour(preset)}
+                        className={`px-2.5 py-1 text-[11px] rounded-lg border font-mono transition-colors ${
+                          maxMessagesPerHour === preset
+                            ? 'bg-emerald-950/80 border-emerald-500 text-emerald-400 font-bold'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                        }`}
+                      >
+                        {preset.toLocaleString()}/hr
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                    Controls maximum dispatch speed. The engine automatically adapts concurrency and pauses if Meta rate limits are encountered.
                   </p>
                 </div>
               </div>

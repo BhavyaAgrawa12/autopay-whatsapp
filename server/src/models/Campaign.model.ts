@@ -47,7 +47,7 @@ const CampaignSchema = new Schema<ICampaign>(
     headerConfig: { type: Schema.Types.Mixed, default: { format: 'NONE' } },
     variableMappings: { type: Schema.Types.Mixed, default: [] },
     audience: { type: Schema.Types.Mixed, default: {} },
-    maxMessagesPerHour: { type: Number, default: 100, min: 1, max: 100 },
+    maxMessagesPerHour: { type: Number, default: 1000, min: 1, max: 100000 },
     status: {
       type: String,
       enum: [
