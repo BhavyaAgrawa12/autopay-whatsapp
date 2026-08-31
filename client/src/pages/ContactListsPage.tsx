@@ -12,6 +12,8 @@ import {
   X,
   AlertCircle,
   CheckCircle2,
+  FileSpreadsheet,
+  UploadCloud,
 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Card } from '../components/ui/Card';
@@ -33,6 +35,7 @@ import {
 } from '../api/contactLists';
 import { fetchContactsApi } from '../api/contacts';
 import { Contact } from '../types/contact';
+import { ImportWizardModal } from '../components/contacts/ImportWizardModal';
 
 export const ContactListsPage: React.FC = () => {
   const [lists, setLists] = useState<ContactListSummary[]>([]);
@@ -46,6 +49,10 @@ export const ContactListsPage: React.FC = () => {
   const [formDescription, setFormDescription] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
+
+  // Direct Excel Import Wizard Modal State
+  const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
+  const [importTargetList, setImportTargetList] = useState<ContactListSummary | null>(null);
 
   // List Detail View Modal State
   const [selectedList, setSelectedList] = useState<ContactListSummary | null>(null);
@@ -106,8 +113,17 @@ export const ContactListsPage: React.FC = () => {
         await updateContactListApi(editingList.id, trimmed, formDescription);
         showToast(`Contact list '${trimmed}' updated successfully.`);
       } else {
-        await createContactListApi(trimmed, formDescription);
+        const created = await createContactListApi(trimmed, formDescription);
         showToast(`Contact list '${trimmed}' created successfully.`);
+        // Ask if they want to immediately upload an excel file to the new list
+        setIsCreateModalOpen(false);
+        setEditingList(null);
+        setFormName('');
+        setFormDescription('');
+        await loadLists();
+        setImportTargetList(created);
+        setIsImportWizardOpen(true);
+        return;
       }
 
       setIsCreateModalOpen(false);
@@ -174,6 +190,21 @@ export const ContactListsPage: React.FC = () => {
     }
   };
 
+  // Open Direct Excel Upload Modal for a List
+  const openUploadModalForList = (list: ContactListSummary) => {
+    setImportTargetList(list);
+    setIsImportWizardOpen(true);
+  };
+
+  // Handle Import Success
+  const handleImportSuccess = async () => {
+    showToast('Contacts imported and assigned to list successfully!');
+    await loadLists();
+    if (selectedList) {
+      await openListDetails(selectedList, 1, '');
+    }
+  };
+
   // Remove Contact from List
   const handleRemoveContact = async (contactId: string, contactName: string) => {
     if (!selectedList) return;
@@ -232,9 +263,22 @@ export const ContactListsPage: React.FC = () => {
         title="Contact Lists"
         description="Segment audience into targeted audience lists for promotional campaigns."
         actions={
-          <Button variant="primary" size="sm" onClick={openCreateModal} leftIcon={<Plus className="w-4 h-4" />}>
-            Create List
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setImportTargetList(null);
+                setIsImportWizardOpen(true);
+              }}
+              leftIcon={<UploadCloud className="w-4 h-4" />}
+            >
+              Upload Excel Sheet
+            </Button>
+            <Button variant="primary" size="sm" onClick={openCreateModal} leftIcon={<Plus className="w-4 h-4" />}>
+              Create List
+            </Button>
+          </div>
         }
       />
 
@@ -254,7 +298,7 @@ export const ContactListsPage: React.FC = () => {
         <EmptyState
           icon={ListFilter}
           title="No Contact Lists Available"
-          description="Create your first targeted audience list to organize contacts for promotional outreach."
+          description="Create your first targeted audience list to organize contacts for promotional outreach, or upload an Excel sheet directly."
           actionLabel="Create Contact List"
           onAction={openCreateModal}
         />
@@ -282,6 +326,9 @@ export const ContactListsPage: React.FC = () => {
                 <div className="flex items-center gap-1">
                   <Button variant="ghost" size="sm" onClick={() => openEditModal(list)} title="Edit List">
                     <Edit2 className="w-3.5 h-3.5 text-slate-400 hover:text-white" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => openUploadModalForList(list)} title="Upload Excel sheet into this list">
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400 hover:text-emerald-300" />
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => handleDeleteList(list)} title="Delete List">
                     <Trash2 className="w-3.5 h-3.5 text-rose-400 hover:text-rose-300" />
@@ -341,12 +388,19 @@ export const ContactListsPage: React.FC = () => {
                 />
               </div>
 
+              {!editingList && (
+                <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-[11px] text-slate-400 flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>After creating, you will be able to upload your Excel sheet directly into this list.</span>
+                </div>
+              )}
+
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
                 <Button type="button" variant="outline" size="sm" onClick={() => setIsCreateModalOpen(false)}>
                   Cancel
                 </Button>
                 <Button type="submit" variant="primary" size="sm" isLoading={isSubmittingForm}>
-                  {editingList ? 'Save Changes' : 'Create List'}
+                  {editingList ? 'Save Changes' : 'Create & Proceed'}
                 </Button>
               </div>
             </form>
@@ -384,200 +438,24 @@ export const ContactListsPage: React.FC = () => {
                 />
               </div>
 
-              <Button variant="primary" size="sm" onClick={() => openAddContactsModal(1, '')} leftIcon={<UserPlus className="w-4 h-4" />}>
-                Add Contacts to List
-              </Button>
-            </div>
-
-            {/* Members Table */}
-            <div className="overflow-y-auto flex-1 border border-slate-800 rounded-xl">
-              {detailLoading ? (
-                <div className="p-8">
-                  <LoadingSpinner label="Loading list members..." />
-                </div>
-              ) : detailMembers.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-xs">No contacts match current filter in this list.</div>
-              ) : (
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800 sticky top-0">
-                    <tr>
-                      <th className="p-3">Name</th>
-                      <th className="p-3">Phone</th>
-                      <th className="p-3">Email</th>
-                      <th className="p-3">Opt-in Status</th>
-                      <th className="p-3 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {detailMembers.map((m) => (
-                      <tr key={m.id} className="hover:bg-slate-800/40">
-                        <td className="p-3 font-semibold text-white">{m.name}</td>
-                        <td className="p-3 font-mono text-slate-300">{m.phone}</td>
-                        <td className="p-3 text-slate-400">{m.email || '—'}</td>
-                        <td className="p-3">
-                          <Badge variant={m.optInStatus === 'OPTED_IN' ? 'success' : 'neutral'} size="sm">
-                            {m.optInStatus}
-                          </Badge>
-                        </td>
-                        <td className="p-3 text-right">
-                          <Button variant="outline" size="sm" onClick={() => handleRemoveContact(m.id, m.name)}>
-                            Remove
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
-            {/* Pagination */}
-            {detailTotalPages > 1 && (
-              <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs text-slate-400">
-                <span>Page {detailPage} of {detailTotalPages}</span>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" disabled={detailPage <= 1} onClick={() => openListDetails(selectedList, detailPage - 1, detailSearch)}>
-                    <ChevronLeft className="w-3.5 h-3.5" /> Previous
-                  </Button>
-                  <Button variant="outline" size="sm" disabled={detailPage >= detailTotalPages} onClick={() => openListDetails(selectedList, detailPage + 1, detailSearch)}>
-                    Next <ChevronRight className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ADD CONTACTS TO LIST MODAL */}
-      {isAddContactsOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 shadow-2xl flex flex-col max-h-[85vh] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h3 className="font-bold text-white text-lg">Add Contacts to '{selectedList?.name}'</h3>
-              <button onClick={() => setIsAddContactsOpen(false)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={addSearch}
-                onChange={(e) => openAddContactsModal(1, e.target.value)}
-                placeholder="Search Contacts database by name, phone, email..."
-                className="w-full pl-9 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-
-            <div className="overflow-y-auto flex-1 border border-slate-800 rounded-xl">
-              {addLoading ? (
-                <div className="p-8">
-                  <LoadingSpinner label="Loading Contacts database..." />
-                </div>
-              ) : availableContacts.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-xs">No available contacts found.</div>
-              ) : (
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800 sticky top-0">
-                    <tr>
-                      <th className="p-3 w-10">Select</th>
-                      <th className="p-3">Name</th>
-                      <th className="p-3">Phone</th>
-                      <th className="p-3">Company</th>
-                      <th className="p-3">Consent</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60">
-                    {availableContacts.map((c) => {
-                      const isSelected = selectedContactIds.includes(c.id);
-                      return (
-                        <tr key={c.id} className="hover:bg-slate-800/40">
-                          <td className="p-3">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => {
-                                if (isSelected) {
-                                  setSelectedContactIds(selectedContactIds.filter((id) => id !== c.id));
-                                } else {
-                                  setSelectedContactIds([...selectedContactIds, c.id]);
-                                }
-                              }}
-                              className="rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-emerald-500"
-                            />
-                          </td>
-                          <td className="p-3 font-semibold text-white">{c.name}</td>
-                          <td className="p-3 font-mono text-slate-300">{c.phone || c.normalizedPhone}</td>
-                          <td className="p-3 text-slate-400">{c.company || '—'}</td>
-                          <td className="p-3">
-                            <Badge variant={c.marketingOptIn === 'OPTED_IN' ? 'success' : 'neutral'} size="sm">
-                              {c.marketingOptIn}
-                            </Badge>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs">
-              <span className="text-slate-400 font-mono">{selectedContactIds.length} contacts selected</span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => setIsAddContactsOpen(false)}>
-                  Cancel
-                </Button>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
                 <Button
                   variant="primary"
                   size="sm"
-                  disabled={selectedContactIds.length === 0}
-                  isLoading={isSubmittingAdd}
-                  onClick={handleAddContactsSubmit}
+                  onClick={() => openUploadModalForList(selectedList)}
+                  leftIcon={<FileSpreadsheet className="w-4 h-4" />}
                 >
-                  Add Selected to List
+                  Upload Excel to List
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openAddContactsModal(1, '')}
+                  leftIcon={<UserPlus className="w-4 h-4" />}
+                >
+                  Add from Contacts DB
                 </Button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* LIST DETAILS & MEMBERS MODAL */}
-      {selectedList && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full p-6 shadow-2xl flex flex-col max-h-[90vh] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div>
-                <h3 className="font-bold text-white text-lg flex items-center gap-2">
-                  <span>{selectedList.name}</span>
-                  <Badge variant="info">{selectedList.memberCount} members</Badge>
-                </h3>
-                {selectedList.description && <p className="text-xs text-slate-400 mt-0.5">{selectedList.description}</p>}
-              </div>
-              <button onClick={() => setSelectedList(null)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Actions Bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-              <div className="relative w-full sm:w-64">
-                <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  value={detailSearch}
-                  onChange={(e) => openListDetails(selectedList, 1, e.target.value)}
-                  placeholder="Search list members..."
-                  className="w-full pl-9 pr-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <Button variant="primary" size="sm" onClick={() => openAddContactsModal(1, '')} leftIcon={<UserPlus className="w-4 h-4" />}>
-                Add Contacts to List
-              </Button>
             </div>
 
             {/* Members Table */}
@@ -587,7 +465,35 @@ export const ContactListsPage: React.FC = () => {
                   <LoadingSpinner label="Loading list members..." />
                 </div>
               ) : detailMembers.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 text-xs">No contacts match current filter in this list.</div>
+                <div className="p-10 text-center space-y-4">
+                  <div className="w-12 h-12 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-slate-400 mx-auto">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-white">No contacts in this list</h4>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Upload an Excel/CSV spreadsheet directly or select contacts from your database.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-center gap-3 pt-2">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => openUploadModalForList(selectedList)}
+                      leftIcon={<FileSpreadsheet className="w-4 h-4" />}
+                    >
+                      Upload Excel Sheet
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openAddContactsModal(1, '')}
+                      leftIcon={<UserPlus className="w-4 h-4" />}
+                    >
+                      Add from Database
+                    </Button>
+                  </div>
+                </div>
               ) : (
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800 sticky top-0">
@@ -640,7 +546,7 @@ export const ContactListsPage: React.FC = () => {
         </div>
       )}
 
-      {/* ADD CONTACTS TO LIST MODAL */}
+      {/* ADD CONTACTS FROM DATABASE MODAL */}
       {isAddContactsOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-3xl w-full p-6 shadow-2xl flex flex-col max-h-[85vh] space-y-4">
@@ -649,6 +555,27 @@ export const ContactListsPage: React.FC = () => {
               <button onClick={() => setIsAddContactsOpen(false)} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            {/* Quick Banner to switch to Excel upload */}
+            <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-slate-300">
+                <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                <span>Want to upload fresh contacts from an Excel spreadsheet instead?</span>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setIsAddContactsOpen(false);
+                  if (selectedList) {
+                    openUploadModalForList(selectedList);
+                  }
+                }}
+                leftIcon={<UploadCloud className="w-3.5 h-3.5" />}
+              >
+                Upload Excel Sheet
+              </Button>
             </div>
 
             <div className="relative">
@@ -701,7 +628,7 @@ export const ContactListsPage: React.FC = () => {
                             />
                           </td>
                           <td className="p-3 font-semibold text-white">{c.name}</td>
-                          <td className="p-3 font-mono text-slate-300">{c.phone}</td>
+                          <td className="p-3 font-mono text-slate-300">{c.phone || c.normalizedPhone}</td>
                           <td className="p-3 text-slate-400">{c.company || '—'}</td>
                           <td className="p-3">
                             <Badge variant={c.marketingOptIn === 'OPTED_IN' ? 'success' : 'neutral'} size="sm">
@@ -736,6 +663,15 @@ export const ContactListsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* DIRECT EXCEL IMPORT WIZARD MODAL */}
+      <ImportWizardModal
+        isOpen={isImportWizardOpen}
+        onClose={() => setIsImportWizardOpen(false)}
+        targetList={importTargetList}
+        onImportSuccess={handleImportSuccess}
+      />
     </div>
   );
 };
+

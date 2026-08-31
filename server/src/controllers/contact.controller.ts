@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
 import { Contact, MarketingOptInStatus } from '../models/Contact.model.js';
 import { ContactList } from '../models/ContactList.model.js';
 import { parseContactFile } from '../utils/excelParser.js';
@@ -108,7 +109,7 @@ export async function importContacts(req: Request, res: Response, next: NextFunc
       throw new ValidationError('Please upload a valid Excel (.xlsx) or CSV file');
     }
 
-    const { mapping, defaultCountryCode } = req.body;
+    const { mapping, defaultCountryCode, contactListId } = req.body;
     let customMapping: Record<string, string> | undefined;
 
     if (mapping) {
@@ -116,6 +117,17 @@ export async function importContacts(req: Request, res: Response, next: NextFunc
         customMapping = typeof mapping === 'string' ? JSON.parse(mapping) : mapping;
       } catch (e) {
         throw new ValidationError('Invalid column mapping JSON format');
+      }
+    }
+
+    let targetList: any = null;
+    if (contactListId) {
+      if (!mongoose.Types.ObjectId.isValid(contactListId)) {
+        throw new ValidationError('Invalid contact list ID provided.');
+      }
+      targetList = await ContactList.findById(contactListId);
+      if (!targetList) {
+        throw new NotFoundError('Selected contact list not found.');
       }
     }
 
@@ -191,6 +203,23 @@ export async function importContacts(req: Request, res: Response, next: NextFunc
       await Contact.bulkWrite(bulkOps);
     }
 
+    // 3.5 If target contact list is specified, add all valid contacts to this list
+    let addedToListCount = 0;
+    if (targetList && seenInFileSet.size > 0) {
+      const upsertedContacts = await Contact.find(
+        { phoneNormalized: { $in: Array.from(seenInFileSet) } },
+        '_id'
+      ).lean();
+      const contactObjectIds = upsertedContacts.map((c) => c._id);
+      if (contactObjectIds.length > 0) {
+        await ContactList.findByIdAndUpdate(
+          targetList._id,
+          { $addToSet: { contactIds: { $each: contactObjectIds } } }
+        );
+        addedToListCount = contactObjectIds.length;
+      }
+    }
+
     // 4. Generate downloadable Excel error report if invalid rows exist
     let errorReportBase64: string | undefined = undefined;
     if (invalidRows.length > 0) {
@@ -207,6 +236,8 @@ export async function importContacts(req: Request, res: Response, next: NextFunc
       importedCount,
       invalidCount,
       duplicateCount,
+      targetListId: targetList?._id,
+      addedToListCount,
     });
 
     res.status(200).json({
@@ -219,6 +250,9 @@ export async function importContacts(req: Request, res: Response, next: NextFunc
           duplicateCount,
           optedOutCount: 0,
           unknownCount: 0,
+          targetListId: targetList?._id?.toString(),
+          targetListName: targetList?.name,
+          addedToListCount,
         },
         invalidRows,
         errorReportXlsxBase64: errorReportBase64,

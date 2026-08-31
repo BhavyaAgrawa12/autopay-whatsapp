@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   UploadCloud,
   FileSpreadsheet,
@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Download,
   Check,
+  ListFilter,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -19,21 +20,33 @@ import { validatePhoneNumber } from '../../utils/phoneValidator';
 import { ColumnMapping, RawImportRow, ImportResultSummary, ValidationStatus } from '../../types/contact';
 import { useContacts } from '../../context/ContactContext';
 import { downloadErrorReport } from '../../utils/errorReportGenerator';
+import { fetchContactListsApi, ContactListSummary } from '../../api/contactLists';
 
 interface ImportWizardModalProps {
   isOpen: boolean;
   onClose: () => void;
+  targetList?: { id: string; name: string } | null;
+  onImportSuccess?: (result?: any) => void;
 }
 
 type WizardStep = 'upload' | 'mapping' | 'preview' | 'complete';
 
-export const ImportWizardModal: React.FC<ImportWizardModalProps> = ({ isOpen, onClose }) => {
+export const ImportWizardModal: React.FC<ImportWizardModalProps> = ({
+  isOpen,
+  onClose,
+  targetList,
+  onImportSuccess,
+}) => {
   const { contacts: existingSessionContacts, importContacts } = useContacts();
 
   const [step, setStep] = useState<WizardStep>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Contact list selection state
+  const [availableLists, setAvailableLists] = useState<ContactListSummary[]>([]);
+  const [selectedListId, setSelectedListId] = useState<string>(targetList?.id || '');
 
   // Parsed raw file state
   const [headers, setHeaders] = useState<string[]>([]);
@@ -48,6 +61,27 @@ export const ImportWizardModal: React.FC<ImportWizardModalProps> = ({ isOpen, on
 
   // Summary result
   const [importSummary, setImportSummary] = useState<ImportResultSummary | null>(null);
+  const [targetListName, setTargetListName] = useState<string | undefined>(targetList?.name);
+
+  // Sync targetList prop
+  useEffect(() => {
+    if (targetList?.id) {
+      setSelectedListId(targetList.id);
+      setTargetListName(targetList.name);
+    } else {
+      setSelectedListId('');
+      setTargetListName(undefined);
+    }
+  }, [targetList, isOpen]);
+
+  // Load available contact lists if no explicit target list is locked
+  useEffect(() => {
+    if (isOpen && !targetList) {
+      fetchContactListsApi()
+        .then((lists) => setAvailableLists(lists))
+        .catch(() => setAvailableLists([]));
+    }
+  }, [isOpen, targetList]);
 
   if (!isOpen) return null;
 
@@ -62,6 +96,13 @@ export const ImportWizardModal: React.FC<ImportWizardModalProps> = ({ isOpen, on
     setProcessedRows([]);
     setPreviewFilter('ALL');
     setImportSummary(null);
+    if (targetList?.id) {
+      setSelectedListId(targetList.id);
+      setTargetListName(targetList.name);
+    } else {
+      setSelectedListId('');
+      setTargetListName(undefined);
+    }
   };
 
   const handleClose = () => {
@@ -213,7 +254,19 @@ export const ImportWizardModal: React.FC<ImportWizardModalProps> = ({ isOpen, on
         formData.append('mapping', JSON.stringify(mapping));
       }
 
+      const activeListId = targetList?.id || selectedListId;
+      if (activeListId) {
+        formData.append('contactListId', activeListId);
+      }
+
       const result = await importContacts(formData);
+
+      const resolvedListName =
+        result?.summary?.targetListName ||
+        targetList?.name ||
+        availableLists.find((l) => l.id === activeListId)?.name;
+
+      setTargetListName(resolvedListName);
 
       const summary: ImportResultSummary = {
         totalRows: result?.summary?.totalUploaded || processedRows.length,
@@ -233,6 +286,10 @@ export const ImportWizardModal: React.FC<ImportWizardModalProps> = ({ isOpen, on
 
       setImportSummary(summary);
       setStep('complete');
+
+      if (onImportSuccess) {
+        onImportSuccess(result);
+      }
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to upload contacts to server database.');
     } finally {
@@ -261,8 +318,20 @@ export const ImportWizardModal: React.FC<ImportWizardModalProps> = ({ isOpen, on
               <UploadCloud className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-100 text-lg">Import Contacts Wizard</h3>
-              <p className="text-xs text-slate-400">Excel / CSV Contact Import into Session State</p>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-slate-100 text-lg">Import Contacts Wizard</h3>
+                {targetList && (
+                  <Badge variant="success" size="sm" className="flex items-center gap-1 font-mono">
+                    <ListFilter className="w-3 h-3" />
+                    Target: {targetList.name}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-slate-400">
+                {targetList
+                  ? `Upload and automatically link contacts directly into '${targetList.name}'`
+                  : 'Excel / CSV Contact Import into Database & Contact Lists'}
+              </p>
             </div>
           </div>
           <button
@@ -299,6 +368,38 @@ export const ImportWizardModal: React.FC<ImportWizardModalProps> = ({ isOpen, on
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto flex-1 space-y-6">
           {errorMessage && <ErrorAlert message={errorMessage} />}
+
+          {/* TARGET LIST BANNER OR SELECTOR */}
+          {targetList ? (
+            <div className="p-3.5 bg-emerald-950/40 border border-emerald-800/60 rounded-xl flex items-center justify-between text-xs text-emerald-200">
+              <div className="flex items-center gap-2">
+                <ListFilter className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>
+                  Contacts from this file will be added directly into list: <strong className="text-white">{targetList.name}</strong>
+                </span>
+              </div>
+              <Badge variant="success" size="sm">Direct List Import</Badge>
+            </div>
+          ) : availableLists.length > 0 && step !== 'complete' ? (
+            <div className="p-3.5 bg-slate-950/60 border border-slate-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2">
+                <ListFilter className="w-4 h-4 text-slate-400 shrink-0" />
+                <span className="text-slate-300 font-medium">Add contacts directly into a Contact List (Optional):</span>
+              </div>
+              <select
+                value={selectedListId}
+                onChange={(e) => setSelectedListId(e.target.value)}
+                className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-white focus:outline-none focus:border-emerald-500"
+              >
+                <option value="">-- General Contacts (No List) --</option>
+                {availableLists.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name} ({l.memberCount} members)
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
 
           {/* STEP 1: UPLOAD */}
           {step === 'upload' && (
@@ -354,7 +455,7 @@ export const ImportWizardModal: React.FC<ImportWizardModalProps> = ({ isOpen, on
                 <div>
                   <h4 className="font-bold text-white text-sm">Map Excel Columns to Contact Fields</h4>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Detected {headers.length} headers. Unmapped headers (e.g. Budget) will be preserved in custom fields.
+                    Detected {headers.length} headers. Unmapped headers will be preserved in custom fields.
                   </p>
                 </div>
                 <Badge variant="info">Detected Headers: {headers.length}</Badge>
@@ -462,7 +563,7 @@ export const ImportWizardModal: React.FC<ImportWizardModalProps> = ({ isOpen, on
                     onChange={(e) => setMapping({ ...mapping, marketingOptIn: e.target.value || undefined })}
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
-                    <option value="">-- Unmapped (Will be set to UNKNOWN) --</option>
+                    <option value="">-- Unmapped (Will be set to OPTED_IN) --</option>
                     {headers.map((h) => (
                       <option key={h} value={h}>{h}</option>
                     ))}
@@ -573,6 +674,12 @@ export const ImportWizardModal: React.FC<ImportWizardModalProps> = ({ isOpen, on
                 <p className="text-xs text-slate-400 mt-1">
                   Processed {importSummary.totalRows} rows from <span className="font-semibold text-slate-200">{importSummary.fileName}</span>
                 </p>
+                {targetListName && (
+                  <p className="text-xs text-emerald-300 font-semibold mt-1.5 flex items-center justify-center gap-1.5">
+                    <ListFilter className="w-3.5 h-3.5" />
+                    All valid contacts added directly into list '{targetListName}'
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-3 gap-4 max-w-lg mx-auto">
@@ -647,7 +754,7 @@ export const ImportWizardModal: React.FC<ImportWizardModalProps> = ({ isOpen, on
                 disabled={validCount === 0}
                 rightIcon={<Check className="w-4 h-4" />}
               >
-                Import {validCount} Valid Contacts
+                Import {validCount} Valid Contacts {targetList ? `to '${targetList.name}'` : ''}
               </Button>
             </>
           )}
@@ -655,7 +762,7 @@ export const ImportWizardModal: React.FC<ImportWizardModalProps> = ({ isOpen, on
           {step === 'complete' && (
             <div className="w-full flex justify-end">
               <Button variant="primary" size="sm" onClick={handleClose}>
-                View Contacts Directory
+                {targetList ? `View Members of '${targetList.name}'` : 'Done'}
               </Button>
             </div>
           )}
