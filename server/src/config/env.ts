@@ -34,13 +34,13 @@ const envSchema = z.object({
   MONGODB_URI: z.string().default('mongodb://127.0.0.1:27017/whatsapp_campaign_manager'),
 
   // Official WhatsApp Business Cloud API Configuration (Phase 5)
-  WHATSAPP_ACCESS_TOKEN: z.string().optional(),
-  WHATSAPP_API_TOKEN: z.string().optional(),
-  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
-  WHATSAPP_BUSINESS_ACCOUNT_ID: z.string().optional(),
-  WHATSAPP_API_VERSION: z.string().default('v18.0'),
-  WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().default('it-company-whatsapp-webhook-verify-2026'),
-  WHATSAPP_APP_SECRET: z.string().optional(),
+  WHATSAPP_ACCESS_TOKEN: z.string().optional().transform((val) => val ? val.trim().replace(/\s+/g, '') : val),
+  WHATSAPP_API_TOKEN: z.string().optional().transform((val) => val ? val.trim().replace(/\s+/g, '') : val),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional().transform((val) => val ? val.trim().replace(/\s+/g, '') : val),
+  WHATSAPP_BUSINESS_ACCOUNT_ID: z.string().optional().transform((val) => val ? val.trim().replace(/\s+/g, '') : val),
+  WHATSAPP_API_VERSION: z.string().default('v18.0').transform((val) => val.trim().replace(/\s+/g, '')),
+  WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().default('it-company-whatsapp-webhook-verify-2026').transform((val) => val.trim()),
+  WHATSAPP_APP_SECRET: z.string().optional().transform((val) => val ? val.trim() : val),
 
   // Sending Engine Tuning & Adaptive Rate Limiting
   WHATSAPP_SEND_CONCURRENCY: z.string().default('5').transform((val) => parseInt(val, 10)),
