@@ -14,11 +14,14 @@ export interface AuthResponse {
 export interface HealthResponse {
   success: boolean;
   data: {
-    status: 'ok' | 'error';
+    status: 'ok' | 'degraded' | 'error';
     timestamp: string;
     uptime: number;
     environment: string;
     version: string;
+    database?: {
+      mongodb: 'connected' | 'disconnected';
+    };
   };
 }
 
