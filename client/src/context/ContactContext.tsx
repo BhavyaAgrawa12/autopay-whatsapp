@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
 import { Contact, MarketingOptInStatus } from '../types/contact';
 import {
   fetchContactsApi,
@@ -54,7 +54,7 @@ const ContactContext = createContext<ContactContextType | undefined>(undefined);
 
 export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
   const [page, setPage] = useState<number>(1);
@@ -74,7 +74,7 @@ export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ child
     services: string[];
   }>({ cities: [], companies: [], services: [] });
 
-  const [activeParams, setActiveParams] = useState<ContactFilterParams>({
+  const activeParamsRef = useRef<ContactFilterParams>({
     page: 1,
     limit: 50,
     sort: 'newest',
@@ -84,11 +84,12 @@ export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [lastErrorReportBase64, setLastErrorReportBase64] = useState<string | null>(null);
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
 
+  // Stable loadContacts callback with ref to prevent re-render cascades
   const loadContacts = useCallback(async (params?: ContactFilterParams) => {
     setLoading(true);
     setError(null);
-    const query = { ...activeParams, ...(params || {}) };
-    setActiveParams(query);
+    const query = { ...activeParamsRef.current, ...(params || {}) };
+    activeParamsRef.current = query;
 
     try {
       const data = await fetchContactsApi(query);
@@ -110,10 +111,6 @@ export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } finally {
       setLoading(false);
     }
-  }, [activeParams]);
-
-  useEffect(() => {
-    loadContacts({ page: 1, limit: 50, sort: 'newest' });
   }, []);
 
   const importContactsFromFile = async (arg1: any, arg2?: any) => {
@@ -125,7 +122,6 @@ export const ContactProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (result.errorReportXlsxBase64) {
           setLastErrorReportBase64(result.errorReportXlsxBase64);
         }
-        // Immediately reload page 1 with newest sort so newly uploaded contacts appear at top
         await loadContacts({ page: 1, sort: 'newest', search: '', optIn: '', city: '', company: '', service: '' });
         return result;
       } else {

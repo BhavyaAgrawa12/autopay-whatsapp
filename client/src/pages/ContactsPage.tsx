@@ -199,14 +199,14 @@ export const ContactsPage: React.FC = () => {
             <strong>Database Persistence:</strong> All contacts are stored securely in your database and accessible anytime across campaigns.
           </span>
         </div>
-        {totalContactsCount > 0 && (
+        {totalContactsCount > 0 && selectedCount > 0 && (
           <Button
             variant="ghost"
             size="sm"
             onClick={clearContacts}
             className="text-rose-400 hover:text-rose-300 hover:bg-rose-950/40"
           >
-            Clear Selected Contacts
+            Delete {selectedCount} Selected
           </Button>
         )}
       </div>
@@ -387,17 +387,18 @@ export const ContactsPage: React.FC = () => {
             </div>
           </Card>
 
-          {/* Contact Data Table */}
+          {/* Contact Data Table Container */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl text-xs relative">
+            {/* Subtle top loading progress bar when refetching */}
             {loading && (
-              <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm z-20 flex items-center justify-center">
-                <LoadingSpinner size="md" label="Loading contacts..." />
+              <div className="h-0.5 w-full bg-emerald-500/20 overflow-hidden absolute top-0 left-0 right-0 z-10">
+                <div className="h-full bg-emerald-400 animate-pulse w-1/3" />
               </div>
             )}
 
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-950 text-slate-400 font-semibold border-b border-slate-800">
+                <thead className="bg-slate-950 text-slate-300 font-semibold border-b border-slate-800">
                   <tr>
                     <th className="p-3 w-10 text-center">
                       <input
@@ -407,25 +408,31 @@ export const ContactsPage: React.FC = () => {
                         className="rounded border-slate-700 text-emerald-600 focus:ring-emerald-500"
                       />
                     </th>
-                    <th className="p-3">Name</th>
-                    <th className="p-3">Phone</th>
-                    <th className="p-3">Email</th>
-                    <th className="p-3">Company</th>
-                    <th className="p-3">City</th>
-                    <th className="p-3">Service</th>
-                    <th className="p-3">Marketing Opt-In</th>
+                    <th className="p-3 text-slate-200">Name</th>
+                    <th className="p-3 text-slate-200">Phone</th>
+                    <th className="p-3 text-slate-200">Email</th>
+                    <th className="p-3 text-slate-200">Company</th>
+                    <th className="p-3 text-slate-200">City</th>
+                    <th className="p-3 text-slate-200">Service</th>
+                    <th className="p-3 text-slate-200">Marketing Opt-In</th>
                     {/* Render preserved custom Excel columns */}
                     {customFieldKeys.map((key) => (
-                      <th key={key} className="p-3 text-slate-300 font-bold">{key}</th>
+                      <th key={key} className="p-3 text-slate-200 font-bold">{key}</th>
                     ))}
-                    <th className="p-3 text-right">Actions</th>
+                    <th className="p-3 text-right text-slate-200">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody className="divide-y divide-slate-800">
                   {contacts.length === 0 ? (
                     <tr>
-                      <td colSpan={8 + customFieldKeys.length} className="p-8 text-center text-slate-500">
-                        {loading ? 'Fetching contacts from database...' : 'No contacts match the active search and filter criteria.'}
+                      <td colSpan={8 + customFieldKeys.length} className="p-12 text-center text-slate-400">
+                        {loading ? (
+                          <div className="flex flex-col items-center justify-center py-4">
+                            <LoadingSpinner size="md" label="Loading contacts from database..." />
+                          </div>
+                        ) : (
+                          'No contacts match the active search and filter criteria.'
+                        )}
                       </td>
                     </tr>
                   ) : (
@@ -438,8 +445,8 @@ export const ContactsPage: React.FC = () => {
                       return (
                         <tr
                           key={cid}
-                          className={`hover:bg-slate-800/40 transition-colors ${
-                            isSelected ? 'bg-emerald-950/20' : ''
+                          className={`hover:bg-slate-800/60 transition-colors ${
+                            isSelected ? 'bg-emerald-950/30' : ''
                           }`}
                         >
                           <td className="p-3 text-center">
@@ -450,12 +457,12 @@ export const ContactsPage: React.FC = () => {
                               className="rounded border-slate-700 text-emerald-600 focus:ring-emerald-500"
                             />
                           </td>
-                          <td className="p-3 font-semibold text-slate-100">{contact.name || '-'}</td>
-                          <td className="p-3 font-mono text-emerald-400 font-medium">{displayPhone}</td>
-                          <td className="p-3 text-slate-300">{contact.email || '-'}</td>
-                          <td className="p-3 text-slate-300">{contact.company || '-'}</td>
-                          <td className="p-3 text-slate-300">{contact.city || '-'}</td>
-                          <td className="p-3 text-slate-300">{contact.service || '-'}</td>
+                          <td className="p-3 font-semibold text-white">{contact.name || '-'}</td>
+                          <td className="p-3 font-mono text-emerald-400 font-semibold">{displayPhone}</td>
+                          <td className="p-3 text-slate-200">{contact.email || '-'}</td>
+                          <td className="p-3 text-slate-200">{contact.company || '-'}</td>
+                          <td className="p-3 text-slate-200">{contact.city || '-'}</td>
+                          <td className="p-3 text-slate-200">{contact.service || '-'}</td>
                           <td className="p-3">
                             {contact.marketingOptIn === 'OPTED_IN' && <Badge variant="success" size="sm">Opted In</Badge>}
                             {contact.marketingOptIn === 'OPTED_OUT' && <Badge variant="error" size="sm">Opted Out</Badge>}
@@ -463,15 +470,15 @@ export const ContactsPage: React.FC = () => {
                           </td>
                           {/* Render custom columns */}
                           {customFieldKeys.map((key) => (
-                            <td key={key} className="p-3 text-slate-300 font-mono">
+                            <td key={key} className="p-3 text-slate-200 font-mono">
                               {contact.customFields?.[key] || '-'}
                             </td>
                           ))}
                           <td className="p-3 text-right">
                             <button
                               onClick={() => removeContact(cid)}
-                              className="p-1 text-slate-500 hover:text-rose-400 rounded hover:bg-slate-800 transition-colors"
-                              title="Remove contact"
+                              className="p-1.5 text-slate-400 hover:text-rose-400 rounded hover:bg-slate-800 transition-colors"
+                              title="Delete contact"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -485,8 +492,8 @@ export const ContactsPage: React.FC = () => {
             </div>
 
             {/* Pagination Controls */}
-            <div className="p-3 bg-slate-950/60 border-t border-slate-800 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-slate-400">
+            <div className="p-3 bg-slate-950/90 border-t border-slate-800 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-slate-300">
                 <span>Rows per page:</span>
                 <select
                   value={pageSize}
@@ -494,14 +501,14 @@ export const ContactsPage: React.FC = () => {
                     setPageSize(Number(e.target.value));
                     setCurrentPage(1);
                   }}
-                  className="bg-slate-900 border border-slate-800 rounded px-2 py-1 text-white focus:outline-none"
+                  className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-white focus:outline-none focus:border-emerald-500"
                 >
                   <option value={10}>10</option>
                   <option value={25}>25</option>
                   <option value={50}>50</option>
                   <option value={100}>100</option>
                 </select>
-                <span>
+                <span className="text-slate-400">
                   Showing {total > 0 ? (currentPage - 1) * pageSize + 1 : 0} -{' '}
                   {Math.min(currentPage * pageSize, total)} of {total} contacts
                 </span>
@@ -517,7 +524,7 @@ export const ContactsPage: React.FC = () => {
                 >
                   Prev
                 </Button>
-                <span className="font-semibold text-slate-300">
+                <span className="font-semibold text-slate-200">
                   Page {currentPage} of {totalPages}
                 </span>
                 <Button
